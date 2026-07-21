@@ -1,0 +1,10 @@
+[project]
+name = "jetson-orin-nano-vlm-benchmarks"
+version = "0.1.0"
+description = "Setup, deployment, and benchmarking of compact vision-language models on NVIDIA Jetson Orin Nano."
+readme = "README.md"
+requires-python = ">=3.10,<3.11"
+dependencies = []
+
+[tool.uv]
+package = false
