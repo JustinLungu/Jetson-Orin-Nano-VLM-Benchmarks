@@ -11,4 +11,15 @@ if [[ "$#" -eq 0 ]]; then
 fi
 
 cd "${REPOSITORY_ROOT}"
-uv run --frozen --group models python -m src.load_models "$@"
+
+UV_GROUPS=(--group download)
+for selector in "$@"; do
+    case "${selector}" in
+        yolo|yolov8n|yolo11n|yolo26n|all)
+            UV_GROUPS+=(--group yolo)
+            break
+            ;;
+    esac
+done
+
+uv run --frozen "${UV_GROUPS[@]}" python -m src.load_models "$@"

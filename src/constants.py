@@ -10,6 +10,35 @@ MODEL_REPOSITORIES = {
     "phi-3.5-vision": "microsoft/Phi-3.5-vision-instruct",
 }
 
+# Keep only files needed by Transformers inference. In particular, SmolVLM
+# repositories also contain several large ONNX variants that are not used by
+# the PyTorch/Transformers benchmark path.
+VLM_DOWNLOAD_ALLOW_PATTERNS = (
+    "*.json",
+    "*.safetensors",
+    "*.py",
+    "*.txt",
+    "*.model",
+    "*.tiktoken",
+    "*.jinja",
+)
+VLM_DOWNLOAD_IGNORE_PATTERNS = (
+    "onnx/*",
+    "*.onnx",
+    "*.bin",
+    "*.gguf",
+    "*.h5",
+    "*.msgpack",
+)
+
+VLM_LOADER_CLASSES = {
+    "smolvlm2-256m": ("AutoModelForImageTextToText", False),
+    "smolvlm2-500m": ("AutoModelForImageTextToText", False),
+    "smolvlm2-2.2b": ("AutoModelForImageTextToText", False),
+    "qwen2.5-vl-3b": ("AutoModelForImageTextToText", False),
+    "phi-3.5-vision": ("AutoModelForCausalLM", True),
+}
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 YOLO_MODEL_DIRECTORY = REPOSITORY_ROOT / "models" / "yolo"
 SMALL_VLM_MODEL_DIRECTORY = REPOSITORY_ROOT / "models" / "small_vlm"

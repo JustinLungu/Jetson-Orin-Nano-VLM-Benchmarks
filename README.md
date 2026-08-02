@@ -47,4 +47,28 @@ Model downloads are kept in the ignored `models/` directory. Select individual m
 ./scripts/download_models.sh all
 ```
 
-The script installs its downloader dependencies from the locked `models` dependency group. VLM snapshots are pinned to their resolved Hugging Face commit and store that revision in `download_metadata.json` for reproducibility.
+The script installs Hugging Face download tooling from the locked `download` group. It adds the heavier `yolo` group only when a YOLO selector is requested. VLM snapshots are pinned to their resolved Hugging Face commit and store that revision in `download_metadata.json` for reproducibility.
+
+Only files required for Transformers inference are downloaded. Alternative ONNX, GGUF, and framework checkpoints are excluded to avoid storing duplicate representations of the same model.
+
+## Jetson-optimized inference
+
+VLM checkpoints are always loaded as FP16 through the shared loader, regardless of the dtype used by the files on disk:
+
+```python
+from src.load_models import load_vlm_fp16
+
+model, processor = load_vlm_fp16("smolvlm2-500m")
+```
+
+The loader uses local files only and fails if the resulting model parameters are not FP16. This makes memory comparisons consistent across model repositories that publish FP32 or BF16 checkpoints.
+
+On the Jetson, install NVIDIA's JetPack-compatible CUDA build of PyTorch first. Do not replace it with the generic PyPI Torch wheel. Sync the remaining inference packages in inexact mode so uv preserves that manually installed Torch build:
+
+```bash
+uv sync --locked --group inference --inexact
+```
+
+The existing `smolvlm2-500m` checkpoint is correct. Its `onnx/` directory is not used by this benchmark path and can be deleted to recover roughly 5.4 GB; retain `model.safetensors` and the top-level configuration/tokenizer files.
+
+YOLO `.pt` files are retained as the portable benchmark inputs, including custom-trained checkpoints. Runtime-specific exports such as TensorRT can be added later if backend comparison becomes an explicit benchmark requirement.

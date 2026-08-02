@@ -4,6 +4,7 @@ import argparse
 import json
 import os
 from pathlib import Path
+from typing import Any
 
 from src.constants import (
     MODEL_GROUPS,
@@ -11,27 +12,18 @@ from src.constants import (
     MODEL_SELECTORS,
     REPOSITORY_ROOT,
     SMALL_VLM_MODEL_DIRECTORY,
+    VLM_DOWNLOAD_ALLOW_PATTERNS,
+    VLM_DOWNLOAD_IGNORE_PATTERNS,
+    VLM_LOADER_CLASSES,
     YOLO_MODEL_DIRECTORY,
     YOLO_MODELS,
 )
+from src.utils import inspect_safetensors, select_model_names
 
 
 def select_models(arguments: list[str]) -> list[str]:
-    """Resolve individual model and family selectors in registry order."""
-    if not arguments:
-        raise ValueError("Select at least one model, 'yolo', 'small-vlm', or 'all'")
-    if "all" in arguments and len(arguments) != 1:
-        raise ValueError("Use 'all' alone, or select individual models or families")
-
-    selected = []
-    for argument in arguments:
-        if argument in MODEL_GROUPS:
-            selected.extend(MODEL_GROUPS[argument])
-        elif argument in MODEL_SELECTORS:
-            selected.append(argument)
-        else:
-            raise ValueError(f"Unknown model selector: {argument}")
-    return list(dict.fromkeys(selected))
+    """Resolve selectors using the configured model registry."""
+    return select_model_names(arguments, MODEL_GROUPS, MODEL_SELECTORS)
 
 
 def download_yolo_model(selector: str, loader=None) -> Path:
@@ -68,15 +60,24 @@ def download_small_vlm_model(selector: str, api, downloader) -> Path:
     print(f"Downloading {selector}...")
     print(f"  repository: {repository}")
     print(f"  revision:   {revision}")
-    downloader(repo_id=repository, revision=revision, local_dir=destination)
+    downloader(
+        repo_id=repository,
+        revision=revision,
+        local_dir=destination,
+        allow_patterns=VLM_DOWNLOAD_ALLOW_PATTERNS,
+        ignore_patterns=VLM_DOWNLOAD_IGNORE_PATTERNS,
+    )
 
     if not (destination / "config.json").is_file():
         raise RuntimeError(f"Downloaded snapshot has no config.json: {destination}")
+    checkpoint_dtypes = inspect_safetensors(destination)
 
     metadata = {
         "selector": selector,
         "repository": repository,
         "revision": revision,
+        "checkpoint_dtypes": checkpoint_dtypes,
+        "jetson_runtime_dtype": "float16",
     }
     (destination / "download_metadata.json").write_text(
         json.dumps(metadata, indent=2) + "\n",
@@ -84,6 +85,8 @@ def download_small_vlm_model(selector: str, api, downloader) -> Path:
     )
     size_gib = sum(path.stat().st_size for path in destination.rglob("*") if path.is_file())
     print(f"  ready: {destination} ({size_gib / 1024**3:.2f} GiB)")
+    print(f"  checkpoint dtypes: {checkpoint_dtypes}")
+    print("  Jetson runtime dtype: float16")
     return destination
 
 
@@ -102,6 +105,52 @@ def download_models(selectors: list[str]) -> None:
             vlm_api = HfApi()
             vlm_downloader = snapshot_download
         download_small_vlm_model(selector, vlm_api, vlm_downloader)
+
+
+def load_vlm_fp16(
+    selector: str,
+    device: str = "cuda",
+    *,
+    torch_module: Any = None,
+    transformers_module: Any = None,
+) -> tuple[Any, Any]:
+    """Load a configured VLM in FP16 and fail if parameters use another dtype."""
+    if selector not in VLM_LOADER_CLASSES:
+        raise ValueError(f"Unknown VLM selector: {selector}")
+
+    if torch_module is None:
+        import torch as torch_module
+    if transformers_module is None:
+        import transformers as transformers_module
+
+    model_path = SMALL_VLM_MODEL_DIRECTORY / selector
+    if not (model_path / "config.json").is_file():
+        raise FileNotFoundError(f"Model is not downloaded: {model_path}")
+
+    loader_name, trust_remote_code = VLM_LOADER_CLASSES[selector]
+    loader = getattr(transformers_module, loader_name)
+    common_arguments = {
+        "local_files_only": True,
+        "trust_remote_code": trust_remote_code,
+    }
+    processor = transformers_module.AutoProcessor.from_pretrained(
+        model_path,
+        **common_arguments,
+    )
+    model = loader.from_pretrained(
+        model_path,
+        torch_dtype=torch_module.float16,
+        low_cpu_mem_usage=True,
+        **common_arguments,
+    )
+    model = model.to(device).eval()
+
+    parameter_dtypes = {parameter.dtype for parameter in model.parameters()}
+    if not parameter_dtypes or not parameter_dtypes.issubset({torch_module.float16}):
+        raise RuntimeError(
+            f"Expected every floating-point model parameter to be FP16, got {parameter_dtypes}"
+        )
+    return model, processor
 
 
 def main() -> None:

@@ -7,8 +7,15 @@ requires-python = ">=3.10,<3.11"
 dependencies = []
 
 [dependency-groups]
-models = [
+download = [
     "huggingface-hub>=0.34,<2",
+    "safetensors>=0.5,<1",
+]
+inference = [
+    "safetensors>=0.5,<1",
+    "transformers>=4.49,<6",
+]
+yolo = [
     "ultralytics>=8.3,<9",
 ]
 
