@@ -7,13 +7,13 @@ from pathlib import Path
 
 from src.constants import (
     MODEL_GROUPS,
+    MODEL_REPOSITORIES,
     MODEL_SELECTORS,
     REPOSITORY_ROOT,
     SMALL_VLM_MODEL_DIRECTORY,
     YOLO_MODEL_DIRECTORY,
     YOLO_MODELS,
 )
-from src.model_registry import MODEL_REPOSITORIES
 
 
 def select_models(arguments: list[str]) -> list[str]:

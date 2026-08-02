@@ -2,7 +2,13 @@
 
 from pathlib import Path
 
-from src.model_registry import MODEL_REPOSITORIES
+MODEL_REPOSITORIES = {
+    "smolvlm2-256m": "HuggingFaceTB/SmolVLM2-256M-Video-Instruct",
+    "smolvlm2-500m": "HuggingFaceTB/SmolVLM2-500M-Video-Instruct",
+    "smolvlm2-2.2b": "HuggingFaceTB/SmolVLM2-2.2B-Instruct",
+    "qwen2.5-vl-3b": "Qwen/Qwen2.5-VL-3B-Instruct",
+    "phi-3.5-vision": "microsoft/Phi-3.5-vision-instruct",
+}
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 YOLO_MODEL_DIRECTORY = REPOSITORY_ROOT / "models" / "yolo"
