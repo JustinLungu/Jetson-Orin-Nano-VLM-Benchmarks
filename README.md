@@ -72,3 +72,19 @@ uv sync --locked --group inference --inexact
 The existing `smolvlm2-500m` checkpoint is correct. Its `onnx/` directory is not used by this benchmark path and can be deleted to recover roughly 5.4 GB; retain `model.safetensors` and the top-level configuration/tokenizer files.
 
 YOLO `.pt` files are retained as the portable benchmark inputs, including custom-trained checkpoints. Runtime-specific exports such as TensorRT can be added later if backend comparison becomes an explicit benchmark requirement.
+
+## Downloading datasets
+
+Download COCO 2017 validation images and annotations for object-detection evaluation:
+
+```bash
+./scripts/download_datasets.sh coco
+```
+
+Download Imagenette-160 validation for a compact ImageNet-compatible classification dataset:
+
+```bash
+./scripts/download_datasets.sh imagenette
+```
+
+Generated dataset contents are stored under `datasets/` and ignored by Git. Only the layout and source documentation are committed. Imagenette contains ten ImageNet classes and is intended for lightweight development; it is not the full ImageNet-1K validation dataset.
