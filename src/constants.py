@@ -46,9 +46,9 @@ IMAGENETTE_DIRECTORY = DATASET_DIRECTORY / "imagenette"
 YOLO_MODEL_DIRECTORY = REPOSITORY_ROOT / "models" / "yolo"
 SMALL_VLM_MODEL_DIRECTORY = REPOSITORY_ROOT / "models" / "small_vlm"
 
-COCO_IMAGES_URL = "https://images.cocodataset.org/zips/val2017.zip"
+COCO_IMAGES_URL = "http://images.cocodataset.org/zips/val2017.zip"
 COCO_ANNOTATIONS_URL = (
-    "https://images.cocodataset.org/annotations/annotations_trainval2017.zip"
+    "http://images.cocodataset.org/annotations/annotations_trainval2017.zip"
 )
 IMAGENETTE_URL = "https://s3.amazonaws.com/fast-ai-imageclas/imagenette2-160.tgz"
 IMAGENETTE_CLASS_IDS = {
