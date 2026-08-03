@@ -40,8 +40,29 @@ VLM_LOADER_CLASSES = {
 }
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+DATASET_DIRECTORY = REPOSITORY_ROOT / "datasets"
+COCO_DIRECTORY = DATASET_DIRECTORY / "coco"
+IMAGENETTE_DIRECTORY = DATASET_DIRECTORY / "imagenette"
 YOLO_MODEL_DIRECTORY = REPOSITORY_ROOT / "models" / "yolo"
 SMALL_VLM_MODEL_DIRECTORY = REPOSITORY_ROOT / "models" / "small_vlm"
+
+COCO_IMAGES_URL = "https://images.cocodataset.org/zips/val2017.zip"
+COCO_ANNOTATIONS_URL = (
+    "https://images.cocodataset.org/annotations/annotations_trainval2017.zip"
+)
+IMAGENETTE_URL = "https://s3.amazonaws.com/fast-ai-imageclas/imagenette2-160.tgz"
+IMAGENETTE_CLASS_IDS = {
+    "n01440764": 0,
+    "n02102040": 217,
+    "n02979186": 482,
+    "n03000684": 491,
+    "n03028079": 497,
+    "n03394916": 566,
+    "n03417042": 569,
+    "n03425413": 571,
+    "n03445777": 574,
+    "n03888257": 701,
+}
 
 YOLO_MODELS = {
     "yolov8n": "yolov8n.pt",

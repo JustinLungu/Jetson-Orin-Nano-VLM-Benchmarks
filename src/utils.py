@@ -1,9 +1,14 @@
 """Reusable utilities shared by model-management and benchmark code."""
 
 import json
+import shutil
 import struct
+import tarfile
+import urllib.request
+import zipfile
 from collections import Counter
 from pathlib import Path
+from typing import BinaryIO, Callable
 
 
 def select_model_names(
@@ -55,3 +60,42 @@ def inspect_safetensors(directory: Path) -> dict[str, int]:
         dtype_counts.update(value["dtype"] for value in tensors)
 
     return dict(sorted(dtype_counts.items()))
+
+
+def download_file(
+    url: str,
+    destination: Path,
+    opener: Callable[[str], BinaryIO] | None = None,
+) -> None:
+    """Stream a URL to a local file without loading it into memory."""
+    open_url = opener or urllib.request.urlopen
+    with open_url(url) as response, destination.open("wb") as output:
+        shutil.copyfileobj(response, output)
+
+
+def extract_zip_safely(archive: Path, destination: Path) -> None:
+    """Extract a ZIP archive after rejecting paths outside the destination."""
+    destination = destination.resolve()
+    with zipfile.ZipFile(archive) as zip_archive:
+        for member in zip_archive.infolist():
+            member_path = (destination / member.filename).resolve()
+            if not member_path.is_relative_to(destination):
+                raise RuntimeError(f"Unsafe ZIP member path: {member.filename}")
+        zip_archive.extractall(destination)
+
+
+def extract_tar_prefix_safely(archive: Path, destination: Path, prefix: str) -> None:
+    """Extract one TAR directory tree after rejecting unsafe member paths."""
+    destination = destination.resolve()
+    with tarfile.open(archive) as tar_archive:
+        members = []
+        for member in tar_archive.getmembers():
+            if member.name != prefix and not member.name.startswith(f"{prefix}/"):
+                continue
+            member_path = (destination / member.name).resolve()
+            if not member_path.is_relative_to(destination):
+                raise RuntimeError(f"Unsafe TAR member path: {member.name}")
+            if member.issym() or member.islnk():
+                raise RuntimeError(f"Archive links are not allowed: {member.name}")
+            members.append(member)
+        tar_archive.extractall(destination, members=members)
