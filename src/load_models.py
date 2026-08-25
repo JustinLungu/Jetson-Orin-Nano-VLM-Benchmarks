@@ -127,6 +127,10 @@ def load_vlm_fp16(
     if not (model_path / "config.json").is_file():
         raise FileNotFoundError(f"Model is not downloaded: {model_path}")
 
+    from src.model_preparation.fp16 import prepared_fp16_path
+
+    model_path = prepared_fp16_path(model_path) or model_path
+
     loader_name, trust_remote_code = VLM_LOADER_CLASSES[selector]
     loader = getattr(transformers_module, loader_name)
     common_arguments = {
