@@ -201,18 +201,32 @@ Reports are device-specific and ignored by Git.
 
 ### Observed results on the 8 GB Orin Nano
 
-These observations were collected on 2026-08-25 with CUDA 12.6, PyTorch 2.8.0, FP16
-inference, and the graphical desktop running. The 256M and 500M measurements used JetPack
-6.2.1 / L4T 36.4.7. The successful 2.2B measurement used JetPack 6.2.2 / L4T 36.5.2 after
-the checkpoint was persistently converted to FP16. Linux and the desktop occupied
-approximately 1.7 GB of the 7.6 GB visible unified memory before the initial VLM runs.
-These are smoke-test measurements from one synthetic image, not final full-dataset results.
+These observations were collected on 2026-08-25 with JetPack 6.2.2 / L4T 36.5.2,
+CUDA 12.6, PyTorch 2.8.0, FP16 inference, and the graphical desktop running. All three
+models below ran sequentially in one process with the same synthetic image and 16-token
+generation limit. The 2.2B checkpoint was persistently converted to FP16. These are
+functionality measurements, not final full-dataset benchmark results.
 
-| Model | Result | Inference | PyTorch CUDA peak | Peak board power | Peak temperature |
-| --- | --- | ---: | ---: | ---: | ---: |
-| SmolVLM2-256M | Passed | 1.865 s | 533.1 MiB | 5.92 W | 48.41 C |
-| SmolVLM2-500M | Passed | 1.830 s | 1025.0 MiB | 6.70 W | 48.25 C |
-| SmolVLM2-2.2B | Passed | 1.481 s | 4334.0 MiB | 12.55 W | 49.38 C |
+| Model | Result | Load time | Measured generation | PyTorch CUDA peak | Peak board power | Peak temperature |
+| --- | --- | ---: | ---: | ---: | ---: | ---: |
+| SmolVLM2-256M | Passed | 22.555 s | 1.800 s | 533.1 MiB | 5.88 W | 48.09 C |
+| SmolVLM2-500M | Passed | 26.769 s | 1.908 s | 1026.1 MiB | 6.62 W | 48.12 C |
+| SmolVLM2-2.2B | Passed | 71.837 s | 1.413 s | 4336.5 MiB | 13.88 W | 49.84 C |
+
+The load-time difference matches the observed wait: load plus the one measured generation
+was approximately 24.35 seconds for 256M, 28.68 seconds for 500M, and 73.25 seconds for
+2.2B, before accounting for warm-up and other runner overhead. The terminal's `inference=`
+value measures only the second, post-warm-up `model.generate()` call. It excludes processor
+creation, checkpoint loading, CUDA placement, input preparation, the warm-up generation,
+and cleanup.
+
+The 2.2B model's lower single generation time does not establish that it is faster. It ran
+last, reached 13.88 W while the smaller models peaked below 6.7 W, and may have benefited
+from warmed CUDA state and higher dynamic clocks. Larger matrix operations can also use the
+GPU more efficiently while small generations remain sensitive to Python, kernel-launch,
+and synchronization overhead. Comparable performance claims require separate fresh
+processes, fixed power/clocks, multiple warm-ups, repeated measurements, and median and p95
+statistics.
 
 The PyTorch CUDA peak is only memory tracked by PyTorch's CUDA allocator. Jetson CPU and
 GPU allocations share physical RAM, so it must not be interpreted as total system memory
