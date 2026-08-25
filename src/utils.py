@@ -1,8 +1,8 @@
 """Reusable utilities shared by model-management and benchmark code."""
 
 import json
-import shutil
 import struct
+import sys
 import tarfile
 import urllib.request
 import zipfile
@@ -70,7 +70,23 @@ def download_file(
     """Stream a URL to a local file without loading it into memory."""
     open_url = opener or urllib.request.urlopen
     with open_url(url) as response, destination.open("wb") as output:
-        shutil.copyfileobj(response, output)
+        content_length = response.headers.get("Content-Length")
+        total_bytes = int(content_length) if content_length else None
+        downloaded_bytes = 0
+
+        while chunk := response.read(1024 * 1024):
+            output.write(chunk)
+            downloaded_bytes += len(chunk)
+            if total_bytes:
+                fraction = min(downloaded_bytes / total_bytes, 1)
+                completed = round(fraction * 30)
+                bar = "#" * completed + "-" * (30 - completed)
+                progress = f"\r[{bar}] {fraction:6.1%}"
+            else:
+                progress = f"\rDownloaded {downloaded_bytes / 1024**2:.1f} MiB"
+            print(progress, end="", file=sys.stderr, flush=True)
+
+        print(file=sys.stderr)
 
 
 def extract_zip_safely(archive: Path, destination: Path) -> None:
