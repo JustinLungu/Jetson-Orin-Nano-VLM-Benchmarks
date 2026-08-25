@@ -20,6 +20,8 @@ from src.inference.runtime import (
     measure_cuda_operation,
 )
 
+ProgressCallback = Callable[[BenchmarkSampleResult, int, int], None]
+
 
 class BenchmarkExecutionError(RuntimeError):
     """A fatal benchmark condition stopped the run after checkpointing."""
@@ -33,6 +35,7 @@ def run_benchmark(
     warmup_iterations: int,
     clock: Callable[[], float] = time.perf_counter,
     telemetry: BenchmarkTelemetry | None = None,
+    progress_callback: ProgressCallback | None = None,
 ) -> BenchmarkSummary:
     """Load once, benchmark every image, and atomically checkpoint each result."""
     _validate_run_configuration(session, writer, warmup_iterations)
@@ -55,6 +58,8 @@ def run_benchmark(
             result = _run_sample(session, sample, clock)
             results.append(result)
             writer.write(results)
+            if progress_callback is not None:
+                progress_callback(result, len(results), len(dataset))
             if result.error_type == "cuda_out_of_memory":
                 raise BenchmarkExecutionError(
                     f"CUDA out of memory while processing {sample.sample_id}"
