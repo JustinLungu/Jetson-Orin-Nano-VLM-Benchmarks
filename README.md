@@ -136,11 +136,63 @@ packages in inexact mode so `uv` preserves the manually installed NVIDIA Torch b
 uv sync --locked --group inference --inexact
 ```
 
-Do not sync the `yolo` group on a Jetson until NVIDIA Torch is installed. Ultralytics
-declares generic PyPI `torch` and `torchvision` dependencies; installing the group
-without controlling those packages can replace the JetPack build. This repository's
-YOLO dependency workflow still needs Jetson-specific validation.
+Do not sync the `yolo` group on a Jetson. Its resolved generic PyPI `torch` and
+`torchvision` packages can replace the JetPack builds. After installing Jetson PyTorch,
+install the locked Ultralytics version with pip-style dependency handling, which accepts
+the existing compatible Torch installation:
+
+```bash
+uv pip install ultralytics==8.4.115
+./scripts/check_jetson_gpu.sh
+```
 
 The existing `smolvlm2-500m` checkpoint is correct. Its `onnx/` directory is not used by this benchmark path and can be deleted to recover roughly 5.4 GB; retain `model.safetensors` and the top-level configuration/tokenizer files.
 
 YOLO `.pt` files are retained as the portable benchmark inputs, including custom-trained checkpoints. Runtime-specific exports such as TensorRT can be added later if backend comparison becomes an explicit benchmark requirement.
+
+## Model smoke tests
+
+Smoke tests answer one question: can a downloaded model complete CUDA inference on this
+Jetson? They do not evaluate prediction accuracy. Run one model, a family, or every
+configured model from the repository root:
+
+```bash
+./scripts/smoke_test_models.sh smolvlm2-256m
+./scripts/smoke_test_models.sh yolo11n
+./scripts/smoke_test_models.sh small-vlm
+./scripts/smoke_test_models.sh yolo
+./scripts/smoke_test_models.sh all
+```
+
+The runner processes models sequentially and releases model objects and cached CUDA
+memory between them. A failure is recorded without stopping the remaining models. The
+command exits nonzero when any selected model fails.
+
+Every model uses the fixed synthetic RGB image at `tests/fixtures/smoke_test.ppm`.
+VLMs use the prompt `Describe this image briefly.`, deterministic generation, and a
+16-token output limit. YOLO smoke tests use FP16 and a 320-pixel input size. These
+settings minimize unified-memory pressure and establish functionality; their timings
+are not substitutes for the full-dataset benchmark.
+
+Terminal output provides a compact status summary:
+
+```text
+[1/1] yolo11n: running
+  PASSED inference=0.050s peak_cuda=40.0MiB
+
+Passed: 1/1
+Report: results/smoke/smoke-20260825T145230Z.json
+```
+
+Each run writes a timestamped JSON report under `results/smoke/` containing runtime
+versions, load and inference times, peak CUDA memory, prediction summaries, and VLM
+generated-token counts. Reports are device-specific and ignored by Git.
+
+The larger VLMs may fail with `cuda_out_of_memory` on an 8 GB Orin Nano even when CUDA
+and the code are configured correctly. Close other memory-heavy applications before an
+`all` run. A recorded memory failure describes the device limit under the current
+conditions; it does not by itself mean the Jetson setup is broken.
+
+The shell entry point uses `uv run --no-sync` intentionally. Smoke tests must preserve
+the validated JetPack-compatible Torch build instead of synchronizing generic PyPI
+Torch from the cross-platform lockfile.
