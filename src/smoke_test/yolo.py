@@ -48,7 +48,7 @@ class YoloSmokeTestAdapter(SmokeTestAdapter):
             "source": image,
             "device": self.device,
             "imgsz": SMOKE_IMAGE_SIZE,
-            "half": True,
+            "quantize": 16,
             "verbose": False,
         }
         return self.prediction_arguments
