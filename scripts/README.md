@@ -32,3 +32,34 @@ Download individual models, a model family, or all configured models:
 ./scripts/download_models.sh yolo
 ./scripts/download_models.sh all
 ```
+
+Prepare the downloaded SmolVLM2-2.2B FP32 checkpoint as persistent FP16 without deleting
+the source files:
+
+```bash
+./scripts/prepare_fp16_model.sh smolvlm2-2.2b
+```
+
+## Model smoke tests
+
+Run single-image CUDA inference for one validated model or the YOLO family:
+
+```bash
+./scripts/smoke_test_models.sh smolvlm2-256m
+./scripts/smoke_test_models.sh yolo11n
+./scripts/smoke_test_models.sh yolo
+```
+
+Do not use the `small-vlm` or `all` selectors on the 8 GB Orin Nano. They include
+Qwen2.5-VL-3B and Phi-3.5 Vision; Qwen exhausted unified memory and restarted the device,
+and Phi was intentionally not attempted after that capacity boundary was established.
+
+Run native FP32 or optimized FP16 for SmolVLM2-256M and SmolVLM2-500M:
+
+```bash
+./scripts/smoke_test_models.sh --precision fp32 smolvlm2-256m smolvlm2-500m
+./scripts/smoke_test_models.sh --precision fp16 smolvlm2-256m smolvlm2-500m
+```
+
+Models run sequentially, and failures do not stop later selections. Results are written
+to `results/smoke/`. The script exits nonzero if any selected model fails.
