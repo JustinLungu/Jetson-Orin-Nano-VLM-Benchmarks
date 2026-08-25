@@ -98,8 +98,10 @@ The loader uses local files only and fails if the resulting model parameters are
 
 ### Jetson prerequisites
 
-This setup has been validated against JetPack 6.2.1 / L4T 36.4.7, Ubuntu 22.04,
-Python 3.10, and CUDA 12.6. Check another Jetson before installing inference packages:
+This setup is currently validated against JetPack 6.2.2 / L4T 36.5.2, Ubuntu 22.04,
+Python 3.10, and CUDA 12.6. L4T 36.4.7 was used during the initial experiments but its
+NvMap allocation bug prevented reliable large-model CUDA placement. Check another Jetson
+before installing inference packages:
 
 ```bash
 cat /etc/nv_tegra_release
@@ -157,10 +159,10 @@ Jetson? They do not evaluate prediction accuracy. Run one model, a family, or ev
 configured model from the repository root:
 
 > [!WARNING]
-> On the 8 GB Orin Nano, do not run `qwen2.5-vl-3b` or
-> `phi-3.5-vision` with the current FP16 loader. Qwen2.5-VL-3B caused the
-> tested Jetson to freeze and restart. Consequently, `small-vlm` and `all`
-> are not safe selectors on this configuration because they include these models.
+> Do not use `small-vlm` or `all` on the 8 GB Orin Nano. An earlier
+> Qwen2.5-VL-3B FP16 attempt on L4T 36.4.7 froze and restarted the device, and
+> Phi-3.5 Vision has not been validated. Run large models individually under controlled
+> memory conditions so one unsafe model cannot terminate the remaining experiments.
 
 ```bash
 ./scripts/smoke_test_models.sh smolvlm2-256m
@@ -199,16 +201,18 @@ Reports are device-specific and ignored by Git.
 
 ### Observed results on the 8 GB Orin Nano
 
-These observations were collected on 2026-08-25 with JetPack 6.2.1 / L4T 36.4.7,
-CUDA 12.6, PyTorch 2.8.0, FP16 inference, and the graphical desktop running. Linux and
-the desktop occupied approximately 1.7 GB of the 7.6 GB visible unified memory before
-the VLM runs. They are smoke-test measurements from one synthetic image, not final
-full-dataset benchmark results.
+These observations were collected on 2026-08-25 with CUDA 12.6, PyTorch 2.8.0, FP16
+inference, and the graphical desktop running. The 256M and 500M measurements used JetPack
+6.2.1 / L4T 36.4.7. The successful 2.2B measurement used JetPack 6.2.2 / L4T 36.5.2 after
+the checkpoint was persistently converted to FP16. Linux and the desktop occupied
+approximately 1.7 GB of the 7.6 GB visible unified memory before the initial VLM runs.
+These are smoke-test measurements from one synthetic image, not final full-dataset results.
 
 | Model | Result | Inference | PyTorch CUDA peak | Peak board power | Peak temperature |
 | --- | --- | ---: | ---: | ---: | ---: |
 | SmolVLM2-256M | Passed | 1.865 s | 533.1 MiB | 5.92 W | 48.41 C |
 | SmolVLM2-500M | Passed | 1.830 s | 1025.0 MiB | 6.70 W | 48.25 C |
+| SmolVLM2-2.2B | Passed | 1.481 s | 4334.0 MiB | 12.55 W | 49.38 C |
 
 The PyTorch CUDA peak is only memory tracked by PyTorch's CUDA allocator. Jetson CPU and
 GPU allocations share physical RAM, so it must not be interpreted as total system memory
@@ -229,9 +233,10 @@ produce a JSON result:
 
 | Model | Observed outcome | Current conclusion |
 | --- | --- | --- |
-| SmolVLM2-2.2B | Reached about 6.9/7.6 GB RAM and 2.5 GB swap, then failed near 85% of weight loading | Not yet validated; retry only by itself after reducing baseline memory and improving the loading path |
-| Qwen2.5-VL-3B | Froze the device and caused an automatic restart | Unsafe with the current FP16 loader on the 8 GB device; do not retry |
-| Phi-3.5 Vision | Not reached because Qwen restarted the device | Treat as unsafe in the same FP16 test sequence; do not run on this configuration |
+| SmolVLM2-2.2B, original FP32 checkpoint on L4T 36.4.7 | Reached about 6.9/7.6 GB RAM and 2.5 GB swap, then failed during loading/CUDA placement | Failed configuration; preserved to show why checkpoint representation and L4T version matter |
+| SmolVLM2-2.2B, prepared FP16 checkpoint on L4T 36.5.2 | Loaded all 657 tensors, reached about 7.2/7.6 GB total RAM, and generated all 16 tokens | Conditionally supported; use an individual run and prefer a headless environment for full benchmarks |
+| Qwen2.5-VL-3B on L4T 36.4.7 | Froze the device and caused an automatic restart | Not validated on 36.5.2; any retest must be individual and headless, with recovery available |
+| Phi-3.5 Vision | Not reached because Qwen restarted the device | Unvalidated; do not include in a family run on the 8 GB configuration |
 
 L4T 36.4.7 also intermittently printed `NvMapMemAllocInternalTagged ... error 12` during
 successful YOLO and VLM runs. Because inference sometimes continued, these messages did
@@ -239,32 +244,65 @@ not indicate the model's steady-state footprint. They are consistent with the kn
 allocation issue in this L4T release and make an upgrade part of any future large-model
 retest.
 
-The 2.2B result is not yet a universal hard limit. Freeing the roughly 1.7 GB desktop
-baseline and upgrading to an L4T release containing NVIDIA's NvMap fix may make it possible.
-Retry it individually rather than through `small-vlm` or `all`:
+### Reproducing the SmolVLM2-2.2B result
 
-```bash
-./scripts/smoke_test_models.sh smolvlm2-2.2b
-```
+The successful result required both a corrected Jetson software stack and a prepared
+checkpoint. The exact environment was JetPack 6.2.2 / L4T 36.5.2, kernel
+`5.15.199-tegra`, CUDA 12.6, PyTorch 2.8.0, and NumPy 1.26.4. The source snapshot was
+`HuggingFaceTB/SmolVLM2-2.2B-Instruct` revision
+`482adb537c021c86670beed01cd58990d01e72e4`.
 
-The published SmolVLM2-2.2B checkpoint contains about 8.99 GB of FP32 tensors. The loader
-requests FP16 and already uses `low_cpu_mem_usage=True`, producing approximately 4.5 GB of
-FP16 parameters, but the on-load conversion and final runtime allocations still share the
-same physical RAM as Linux. Prepare a persistent FP16 copy before the next controlled retry:
+The published checkpoint contains 657 FP32 tensors totaling 8,987,139,520 bytes. Prepare
+the persistent FP16 representation once:
 
 ```bash
 ./scripts/prepare_fp16_model.sh smolvlm2-2.2b
 ```
 
-The converter retains and validates every tensor, copies the model configuration, and leaves
-the original FP32 checkpoint untouched. The loader automatically prefers the validated FP16
-copy. It requires about 4.5 GB of additional storage and avoids converting the 8.99 GB FP32
-checkpoint during every load.
+The conversion must finish with `target_dtype: float16`, `tensor_count: 657`, and
+`total_tensor_bytes: 4493569760` in `fp16/conversion_metadata.json`. The converter retains
+the tensor names and model configuration, validates that every output tensor is FP16, and
+leaves the original FP32 checkpoint untouched. The loader automatically prefers this
+validated copy.
+
+Close memory-heavy applications and run only this selector:
+
+```bash
+./scripts/smoke_test_models.sh smolvlm2-2.2b
+```
+
+The successful report loaded all 657 tensors, completed 16-token deterministic generation
+in 1.481 seconds, recorded a 4334.0 MiB PyTorch CUDA peak, and produced coherent output.
+Total Jetson RAM reached approximately 7.2/7.6 GB, so passing the smoke test does not imply
+enough headroom for arbitrary prompts, image sizes, token limits, or concurrent processes.
+
+### Headless experiments over SSH
+
+SSH only saves memory when the graphical desktop is stopped; connecting through SSH while
+GNOME, the display server, VS Code, and browsers remain active provides little benefit.
+From an established SSH session, switch the Jetson to its non-graphical target before a
+large-model experiment:
+
+```bash
+sudo systemctl isolate multi-user.target
+```
+
+Restore the desktop afterward:
+
+```bash
+sudo systemctl isolate graphical.target
+```
+
+Removing the graphical baseline should give the 2.2B full-dataset benchmark a safer memory
+margin. It also creates a justified future research question: Qwen2.5-VL-3B may become
+loadable on L4T 36.5.2 in a fully headless session, potentially with a persistent FP16 or
+quantized checkpoint. This has not been tested and must not be stated as support. A future
+Qwen experiment should run by itself, checkpoint results before loading, monitor unified
+memory externally, and assume that another reboot remains possible.
 
 Quantization or a TensorRT engine is the appropriate next experiment for Qwen2.5-VL-3B and
-Phi-3.5 Vision, but do not retry their current FP16 smoke tests on the 8 GB device. Results
-from another precision or backend must be reported separately rather than compared directly
-with FP16.
+Phi-3.5 Vision if headless FP16 placement still fails. Results from another precision or
+backend must be reported separately rather than compared directly with FP16.
 
 The shell entry point uses `uv run --no-sync` intentionally. Smoke tests must preserve
 the validated JetPack-compatible Torch build instead of synchronizing generic PyPI
