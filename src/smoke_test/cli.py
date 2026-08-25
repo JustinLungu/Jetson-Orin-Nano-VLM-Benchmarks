@@ -3,6 +3,7 @@
 import argparse
 import json
 from collections.abc import Callable, Sequence
+from dataclasses import replace
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -13,6 +14,7 @@ from src.constants import (
     YOLO_MODELS,
 )
 from src.smoke_test.result import SmokeTestResult
+from src.smoke_test.runtime import TegrastatsMonitor
 from src.smoke_test.vlm import run_vlm_smoke_test
 from src.smoke_test.yolo import run_yolo_smoke_test
 from src.utils import select_model_names
@@ -20,6 +22,7 @@ from src.utils import select_model_names
 SMOKE_IMAGE = REPOSITORY_ROOT / "tests" / "fixtures" / "smoke_test.ppm"
 SMOKE_RESULTS_DIRECTORY = REPOSITORY_ROOT / "results" / "smoke"
 SmokeRunner = Callable[[str, Path], SmokeTestResult]
+MonitorFactory = Callable[[], TegrastatsMonitor]
 
 
 def select_smoke_models(arguments: list[str]) -> list[str]:
@@ -32,6 +35,7 @@ def run_selected_models(
     image_path: Path,
     *,
     runners: dict[str, SmokeRunner] | None = None,
+    monitor_factory: MonitorFactory = TegrastatsMonitor,
 ) -> list[SmokeTestResult]:
     """Run selected models sequentially and isolate unexpected runner failures."""
     runners = runners or {
@@ -43,6 +47,8 @@ def run_selected_models(
     for index, selector in enumerate(selectors, start=1):
         family = family_for_selector(selector)
         print(f"[{index}/{total}] {selector}: running")
+        monitor = monitor_factory()
+        monitor.start()
         try:
             result = runners[family](selector, image_path)
         except Exception as error:
@@ -55,6 +61,9 @@ def run_selected_models(
                 error_type="runner_error",
                 error_message=str(error),
             )
+        finally:
+            jetson_metrics = monitor.stop()
+        result = replace(result, jetson_metrics=jetson_metrics)
         results.append(result)
         print(format_result_summary(result))
     return results
@@ -105,6 +114,7 @@ def main(
     runners: dict[str, SmokeRunner] | None = None,
     output_directory: Path = SMOKE_RESULTS_DIRECTORY,
     created_at: datetime | None = None,
+    monitor_factory: MonitorFactory = TegrastatsMonitor,
 ) -> int:
     parser = argparse.ArgumentParser(
         description="Run single-image CUDA inference smoke tests.",
@@ -121,7 +131,12 @@ def main(
     except ValueError as error:
         parser.error(str(error))
 
-    results = run_selected_models(selectors, SMOKE_IMAGE, runners=runners)
+    results = run_selected_models(
+        selectors,
+        SMOKE_IMAGE,
+        runners=runners,
+        monitor_factory=monitor_factory,
+    )
     report_path = write_smoke_report(
         results,
         SMOKE_IMAGE,

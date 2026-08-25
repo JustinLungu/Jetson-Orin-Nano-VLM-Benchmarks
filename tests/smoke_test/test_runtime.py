@@ -11,8 +11,10 @@ from src.smoke_test.runtime import (
     collect_runtime_metadata,
     infer_jetpack_family,
     measure_cuda_operation,
+    parse_tegrastats_line,
     peak_cuda_memory_mib,
     reset_peak_cuda_memory,
+    summarize_tegrastats,
 )
 
 
@@ -106,6 +108,40 @@ class RuntimeMetadataTests(unittest.TestCase):
 
     def test_unknown_l4t_release_does_not_guess_jetpack(self) -> None:
         self.assertEqual("unknown", infer_jetpack_family("not a Jetson release"))
+
+
+class TegrastatsParsingTests(unittest.TestCase):
+    SAMPLE_ONE = (
+        "RAM 3415/7620MB CPU [75%@1344,85%@1344,off,79%@1344] "
+        "GR3D_FREQ 13%@[917] cpu@49.031C gpu@48.406C tj@49.031C "
+        "VDD_IN 8527mW/4783mW"
+    )
+    SAMPLE_TWO = (
+        "RAM 3488/7620MB CPU [81%@1344,68%@1344,66%@1344] "
+        "GR3D_FREQ 47%@[712] cpu@49.343C gpu@48.468C tj@49.156C "
+        "VDD_IN 8147mW/4814mW"
+    )
+
+    def test_parses_requested_metrics(self) -> None:
+        sample = parse_tegrastats_line(self.SAMPLE_ONE)
+
+        self.assertAlmostEqual(79.67, sample["cpu"], places=2)
+        self.assertEqual(13.0, sample["gpu"])
+        self.assertEqual(8.527, sample["power_watts"])
+        self.assertEqual(49.031, sample["temperature_celsius"])
+
+    def test_summarizes_average_and_peak(self) -> None:
+        samples = [
+            parse_tegrastats_line(self.SAMPLE_ONE),
+            parse_tegrastats_line(self.SAMPLE_TWO),
+        ]
+
+        summary = summarize_tegrastats(samples)
+
+        self.assertEqual({"average": 30.0, "peak": 47.0}, summary["gpu_utilization_percent"])
+        self.assertEqual({"average": 8.34, "peak": 8.53}, summary["power_watts"])
+        self.assertEqual(79.67, summary["cpu_utilization_percent"]["peak"])
+        self.assertEqual(49.34, summary["temperature_celsius"]["peak"])
 
 
 if __name__ == "__main__":

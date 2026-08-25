@@ -14,6 +14,20 @@ from src.smoke_test.result import SmokeTestResult
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SMOKE_SCRIPT = REPOSITORY_ROOT / "scripts/smoke_test_models.sh"
+JETSON_METRICS = {
+    "cpu_utilization_percent": {"average": 75.0, "peak": 85.0},
+    "gpu_utilization_percent": {"average": 30.0, "peak": 47.0},
+    "power_watts": {"average": 8.3, "peak": 8.5},
+    "temperature_celsius": {"average": 48.5, "peak": 49.3},
+}
+
+
+class FakeMonitor:
+    def start(self) -> None:
+        pass
+
+    def stop(self):
+        return JETSON_METRICS
 
 
 def make_result(model: str, family: str, status: str = "passed") -> SmokeTestResult:
@@ -59,6 +73,7 @@ class SequentialRunnerTests(unittest.TestCase):
             ["yolov8n", "yolo11n"],
             Path("fixture.ppm"),
             runners={"yolo": yolo_runner, "small-vlm": Mock()},
+            monitor_factory=FakeMonitor,
         )
 
         self.assertEqual(["yolov8n", "yolo11n"], calls)
@@ -71,6 +86,7 @@ class SequentialRunnerTests(unittest.TestCase):
             ["yolov8n", "yolo11n"],
             Path("fixture.ppm"),
             runners={"yolo": runner, "small-vlm": Mock()},
+            monitor_factory=FakeMonitor,
         )
 
         self.assertEqual("runner_error", results[0].error_type)
@@ -89,6 +105,7 @@ class SmokeCliTests(unittest.TestCase):
                 runners={"yolo": runner, "small-vlm": Mock()},
                 output_directory=output,
                 created_at=created_at,
+                monitor_factory=FakeMonitor,
             )
             report_path = output / "smoke-20260825T123000Z.json"
             report = json.loads(report_path.read_text(encoding="utf-8"))
@@ -96,6 +113,7 @@ class SmokeCliTests(unittest.TestCase):
         self.assertEqual(1, exit_code)
         self.assertEqual(1, report["schema_version"])
         self.assertEqual("failed", report["results"][0]["status"])
+        self.assertEqual(JETSON_METRICS, report["results"][0]["jetson_metrics"])
 
     def test_shell_entry_point_has_valid_syntax_and_preserves_environment(self) -> None:
         subprocess.run(["bash", "-n", str(SMOKE_SCRIPT)], check=True)

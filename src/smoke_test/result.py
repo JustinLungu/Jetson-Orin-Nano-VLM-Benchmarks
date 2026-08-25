@@ -18,6 +18,7 @@ class SmokeTestResult:
     load_time_seconds: float | None = None
     inference_time_seconds: float | None = None
     peak_cuda_memory_mib: float | None = None
+    jetson_metrics: dict[str, dict[str, float]] | None = None
     generated_tokens: int | None = None
     prediction_summary: str | None = None
     error_type: str | None = None
