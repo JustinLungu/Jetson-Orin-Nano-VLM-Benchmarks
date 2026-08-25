@@ -18,6 +18,7 @@ class SmokeTestResult:
     load_time_seconds: float | None = None
     inference_time_seconds: float | None = None
     peak_cuda_memory_mib: float | None = None
+    generated_tokens: int | None = None
     prediction_summary: str | None = None
     error_type: str | None = None
     error_message: str | None = None
@@ -35,6 +36,8 @@ class SmokeTestResult:
             value = getattr(self, field_name)
             if value is not None and value < 0:
                 raise ValueError(f"{field_name} cannot be negative")
+        if self.generated_tokens is not None and self.generated_tokens < 0:
+            raise ValueError("generated_tokens cannot be negative")
 
     def to_dict(self) -> dict[str, Any]:
         """Return a JSON-serializable dictionary with a stable schema."""

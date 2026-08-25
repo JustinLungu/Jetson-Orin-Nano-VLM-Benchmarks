@@ -10,6 +10,7 @@ from src.constants import YOLO_MODEL_DIRECTORY, YOLO_MODELS
 from src.inference_utils import (
     cleanup_cuda,
     collect_runtime_metadata,
+    is_cuda_out_of_memory,
     measure_cuda_operation,
     peak_cuda_memory_mib,
     reset_peak_cuda_memory,
@@ -120,12 +121,3 @@ def summarize_yolo_predictions(predictions: Any) -> str:
         return "detections=0"
     boxes = getattr(predictions[0], "boxes", None)
     return f"detections={len(boxes) if boxes is not None else 0}"
-
-
-def is_cuda_out_of_memory(error: Exception, torch_module: Any) -> bool:
-    """Recognize PyTorch and lower-level CUDA allocation failures."""
-    out_of_memory_type = getattr(torch_module.cuda, "OutOfMemoryError", ())
-    if isinstance(error, out_of_memory_type):
-        return True
-    message = str(error).lower()
-    return "out of memory" in message or "cublas_status_alloc_failed" in message

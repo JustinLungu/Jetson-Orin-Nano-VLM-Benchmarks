@@ -47,6 +47,22 @@ def cleanup_cuda(
         torch_module.cuda.empty_cache()
 
 
+def is_cuda_out_of_memory(error: Exception, torch_module: Any) -> bool:
+    """Recognize PyTorch and lower-level CUDA allocation failures."""
+    out_of_memory_type = getattr(torch_module.cuda, "OutOfMemoryError", ())
+    if isinstance(error, out_of_memory_type):
+        return True
+    message = str(error).lower()
+    return any(
+        marker in message
+        for marker in (
+            "out of memory",
+            "cublas_status_alloc_failed",
+            "cudacachingallocator",
+        )
+    )
+
+
 def collect_runtime_metadata(
     torch_module: Any,
     *,

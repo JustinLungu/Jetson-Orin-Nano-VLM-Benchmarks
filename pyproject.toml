@@ -12,6 +12,8 @@ download = [
     "safetensors>=0.5,<1",
 ]
 inference = [
+    "num2words>=0.5,<1",
+    "pillow>=10,<13",
     "safetensors>=0.5,<1",
     "transformers>=4.49,<6",
 ]
