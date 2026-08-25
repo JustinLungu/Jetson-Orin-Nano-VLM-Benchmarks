@@ -156,12 +156,17 @@ Smoke tests answer one question: can a downloaded model complete CUDA inference 
 Jetson? They do not evaluate prediction accuracy. Run one model, a family, or every
 configured model from the repository root:
 
+> [!WARNING]
+> On the 8 GB Orin Nano, do not run `qwen2.5-vl-3b` or
+> `phi-3.5-vision` with the current FP16 loader. Qwen2.5-VL-3B caused the
+> tested Jetson to freeze and restart. Consequently, `small-vlm` and `all`
+> are not safe selectors on this configuration because they include these models.
+
 ```bash
 ./scripts/smoke_test_models.sh smolvlm2-256m
+./scripts/smoke_test_models.sh smolvlm2-500m
 ./scripts/smoke_test_models.sh yolo11n
-./scripts/smoke_test_models.sh small-vlm
 ./scripts/smoke_test_models.sh yolo
-./scripts/smoke_test_models.sh all
 ```
 
 The runner processes models sequentially and releases model objects and cached CUDA
@@ -185,13 +190,75 @@ Report: results/smoke/smoke-20260825T145230Z.json
 ```
 
 Each run writes a timestamped JSON report under `results/smoke/` containing runtime
-versions, load and inference times, peak CUDA memory, prediction summaries, and VLM
-generated-token counts. Reports are device-specific and ignored by Git.
+versions, load and inference times, peak CUDA memory, Jetson CPU/GPU/power/temperature
+summaries, prediction summaries, and VLM generated-token counts. The report is created
+before inference begins and atomically updated after every model, so completed results
+survive a later model crashing or rebooting the Jetson. `selected_models` records the
+intended run and `run_completed` remains `false` until every selected model finishes.
+Reports are device-specific and ignored by Git.
 
-The larger VLMs may fail with `cuda_out_of_memory` on an 8 GB Orin Nano even when CUDA
-and the code are configured correctly. Close other memory-heavy applications before an
-`all` run. A recorded memory failure describes the device limit under the current
-conditions; it does not by itself mean the Jetson setup is broken.
+### Observed results on the 8 GB Orin Nano
+
+These observations were collected on 2026-08-25 with JetPack 6.2.1 / L4T 36.4.7,
+CUDA 12.6, PyTorch 2.8.0, FP16 inference, and the graphical desktop running. Linux and
+the desktop occupied approximately 1.7 GB of the 7.6 GB visible unified memory before
+the VLM runs. They are smoke-test measurements from one synthetic image, not final
+full-dataset benchmark results.
+
+| Model | Result | Inference | PyTorch CUDA peak | Peak board power | Peak temperature |
+| --- | --- | ---: | ---: | ---: | ---: |
+| SmolVLM2-256M | Passed | 1.865 s | 533.1 MiB | 5.92 W | 48.41 C |
+| SmolVLM2-500M | Passed | 1.830 s | 1025.0 MiB | 6.70 W | 48.25 C |
+
+The PyTorch CUDA peak is only memory tracked by PyTorch's CUDA allocator. Jetson CPU and
+GPU allocations share physical RAM, so it must not be interpreted as total system memory
+required by a model.
+
+Two consecutive YOLO family runs produced the following ranges. Variation between these
+single-image runs is expected because they are functionality checks rather than repeated
+performance trials.
+
+| Model | Result | Inference range | PyTorch CUDA peak |
+| --- | --- | ---: | ---: |
+| YOLOv8n | Passed | 34.7-35.7 ms | 12.1 MiB |
+| YOLO11n | Passed | 38.7-58.3 ms | 40.0 MiB |
+| YOLO26n | Passed | 45.3-46.2 ms | 41.4 MiB |
+
+The following larger-model outcomes are safety findings, including runs that could not
+produce a JSON result:
+
+| Model | Observed outcome | Current conclusion |
+| --- | --- | --- |
+| SmolVLM2-2.2B | Reached about 6.9/7.6 GB RAM and 2.5 GB swap, then failed near 85% of weight loading | Not yet validated; retry only by itself after reducing baseline memory and improving the loading path |
+| Qwen2.5-VL-3B | Froze the device and caused an automatic restart | Unsafe with the current FP16 loader on the 8 GB device; do not retry |
+| Phi-3.5 Vision | Not reached because Qwen restarted the device | Treat as unsafe in the same FP16 test sequence; do not run on this configuration |
+
+L4T 36.4.7 also intermittently printed `NvMapMemAllocInternalTagged ... error 12` during
+successful YOLO and VLM runs. Because inference sometimes continued, these messages did
+not indicate the model's steady-state footprint. They are consistent with the known NvMap
+allocation issue in this L4T release and make an upgrade part of any future large-model
+retest.
+
+The 2.2B result is not yet a universal hard limit. Freeing the roughly 1.7 GB desktop
+baseline and upgrading to an L4T release containing NVIDIA's NvMap fix may make it possible.
+Retry it individually rather than through `small-vlm` or `all`:
+
+```bash
+./scripts/smoke_test_models.sh smolvlm2-2.2b
+```
+
+The published SmolVLM2-2.2B checkpoint contains about 8.99 GB of FP32 tensors. The loader
+requests FP16 and already uses `low_cpu_mem_usage=True`, producing approximately 4.5 GB of
+FP16 parameters, but the on-load conversion and final runtime allocations still share the
+same physical RAM as Linux. Before retrying, the safer optimization to investigate is a
+separately preconverted local FP16 checkpoint, which avoids converting the 8.99 GB FP32
+checkpoint during every load. This requires about 4.5 GB of additional storage and must be
+validated separately before it becomes the default download path.
+
+Quantization or a TensorRT engine is the appropriate next experiment for Qwen2.5-VL-3B and
+Phi-3.5 Vision, but do not retry their current FP16 smoke tests on the 8 GB device. Results
+from another precision or backend must be reported separately rather than compared directly
+with FP16.
 
 The shell entry point uses `uv run --no-sync` intentionally. Smoke tests must preserve
 the validated JetPack-compatible Torch build instead of synchronizing generic PyPI
