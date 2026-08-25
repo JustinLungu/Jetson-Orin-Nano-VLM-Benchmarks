@@ -7,6 +7,7 @@ from typing import Any, Callable
 
 from PIL import Image
 
+from src.inference.base import InferenceSession
 from src.smoke_test.result import SmokeTestResult
 from src.smoke_test.runtime import (
     cleanup_cuda,
@@ -39,9 +40,8 @@ class SmokeTestAdapter(ABC):
         self.device = device
         self.torch = torch_module
         self.clock = clock
-        self.model: Any = None
-        self.processor: Any = None
-        self.inputs: Any = None
+        self.session: InferenceSession | None = None
+        self.prepared: Any = None
         self.image: Image.Image | None = None
 
     def run(self) -> SmokeTestResult:
@@ -51,38 +51,42 @@ class SmokeTestAdapter(ABC):
         phase = "model_loading"
 
         try:
-            self.validate_selector()
             if not self.image_path.is_file():
                 raise FileNotFoundError(f"Smoke-test image not found: {self.image_path}")
 
+            self.session = self.create_session()
             started_at = self.clock()
-            self.model, self.processor = self.load_model()
+            self.session.load()
             load_time = self.clock() - started_at
 
             with Image.open(self.image_path) as source_image:
                 self.image = source_image.convert("RGB")
-            self.inputs = self.prepare_inputs(self.image)
+            self.prepared = self.session.prepare(self.image)
 
             reset_peak_cuda_memory(self.torch, self.device)
             phase = "warmup"
-            warmup_output = self.infer()
+            warmup_output = self.session.infer(self.prepared)
             del warmup_output
 
             phase = "inference"
             output, inference_time = measure_cuda_operation(
-                self.infer,
+                lambda: self.session.infer(self.prepared),
                 self.torch,
                 clock=self.clock,
             )
             peak_memory = peak_cuda_memory_mib(self.torch, self.device)
-            summary, generated_tokens = self.summarize(output)
+            summary, generated_tokens = self.session.summarize(output, self.prepared)
             return SmokeTestResult(
                 model=self.selector,
                 family=self.family,
                 status="passed",
                 device=self.device,
                 runtime_versions=runtime_versions,
-                runtime_precision=getattr(self, "precision", None),
+                runtime_precision=(
+                    self.session.precision
+                    if self.session is not None
+                    else getattr(self, "precision", None)
+                ),
                 load_time_seconds=load_time,
                 inference_time_seconds=inference_time,
                 peak_cuda_memory_mib=peak_memory,
@@ -101,7 +105,11 @@ class SmokeTestAdapter(ABC):
                 status="failed",
                 device=self.device,
                 runtime_versions=runtime_versions,
-                runtime_precision=getattr(self, "precision", None),
+                runtime_precision=(
+                    self.session.precision
+                    if self.session is not None
+                    else getattr(self, "precision", None)
+                ),
                 load_time_seconds=load_time,
                 inference_time_seconds=inference_time,
                 peak_cuda_memory_mib=peak_memory,
@@ -113,28 +121,15 @@ class SmokeTestAdapter(ABC):
 
     def release(self) -> None:
         """Release adapter-owned objects before returning cached CUDA memory."""
-        self.model = self.processor = self.inputs = None
+        self.prepared = None
+        if self.session is not None:
+            self.session.close()
+            self.session = None
         if self.image is not None:
             self.image.close()
             self.image = None
         cleanup_cuda(self.torch)
 
     @abstractmethod
-    def validate_selector(self) -> None:
-        """Reject selectors not supported by this adapter."""
-
-    @abstractmethod
-    def load_model(self) -> tuple[Any, Any]:
-        """Load local model resources and return model and optional processor."""
-
-    @abstractmethod
-    def prepare_inputs(self, image: Image.Image) -> Any:
-        """Prepare model-specific inputs from a decoded RGB image."""
-
-    @abstractmethod
-    def infer(self) -> Any:
-        """Run one inference using prepared adapter state."""
-
-    @abstractmethod
-    def summarize(self, output: Any) -> tuple[str, int | None]:
-        """Return a compact prediction summary and optional generated-token count."""
+    def create_session(self) -> InferenceSession:
+        """Create the family-specific loaded-model session."""
