@@ -230,26 +230,35 @@ Reports are device-specific and ignored by Git.
 ### Observed results on the 8 GB Orin Nano
 
 These observations were collected on 2026-08-25 with JetPack 6.2.2 / L4T 36.5.2,
-CUDA 12.6, PyTorch 2.8.0, FP16 inference, and the graphical desktop running. All three
-models below ran sequentially in one process with the same synthetic image and 16-token
-generation limit. The 2.2B checkpoint was persistently converted to FP16. These are
+CUDA 12.6, PyTorch 2.8.0, and the graphical desktop running. Each run used the same
+synthetic image and 16-token generation limit. The FP16 models ran sequentially in one
+process, followed by a separate sequential FP32 run of the two configurations that can
+fit safely. The 2.2B checkpoint was persistently converted to FP16. These are smoke-test
 functionality measurements, not final full-dataset benchmark results.
 
-| Model | Result | Load time | Measured generation | PyTorch CUDA peak | Peak board power | Peak temperature |
-| --- | --- | ---: | ---: | ---: | ---: | ---: |
-| SmolVLM2-256M | Passed | 22.555 s | 1.800 s | 533.1 MiB | 5.88 W | 48.09 C |
-| SmolVLM2-500M | Passed | 26.769 s | 1.908 s | 1026.1 MiB | 6.62 W | 48.12 C |
-| SmolVLM2-2.2B | Passed | 71.837 s | 1.413 s | 4336.5 MiB | 13.88 W | 49.84 C |
+| Model | Precision | Result | Load time | Measured generation | PyTorch CUDA peak | Peak board power | Peak temperature |
+| --- | --- | --- | ---: | ---: | ---: | ---: | ---: |
+| SmolVLM2-256M | FP16 | Passed | 22.810 s | 1.862 s | 533.1 MiB | 5.96 W | 47.88 C |
+| SmolVLM2-256M | FP32 | Passed | 23.719 s | 2.114 s | 1059.1 MiB | 9.00 W | 49.19 C |
+| SmolVLM2-500M | FP16 | Passed | 27.463 s | 1.878 s | 1026.1 MiB | 6.70 W | 47.81 C |
+| SmolVLM2-500M | FP32 | Passed | 27.424 s | 2.216 s | 2013.7 MiB | 10.24 W | 49.41 C |
+| SmolVLM2-2.2B | FP16 | Passed | 68.944 s | 1.449 s | 4336.5 MiB | 13.78 W | 49.44 C |
 
-The load-time difference matches the observed wait: load plus the one measured generation
-was approximately 24.35 seconds for 256M, 28.68 seconds for 500M, and 73.25 seconds for
-2.2B, before accounting for warm-up and other runner overhead. The terminal's `inference=`
-value measures only the second, post-warm-up `model.generate()` call. It excludes processor
-creation, checkpoint loading, CUDA placement, input preparation, the warm-up generation,
-and cleanup.
+FP32 approximately doubled the PyTorch CUDA peak: 533.1 to 1059.1 MiB for 256M and
+1026.1 to 2013.7 MiB for 500M. In these individual measurements, FP16 reduced measured
+generation time by about 12% for 256M and 15% for 500M, while also reducing peak board
+power. Both smaller models are therefore compatible with FP32, but FP16 is the more
+memory- and power-efficient Jetson configuration. FP32 remains useful as a native-
+precision reference for later output and numerical-quality comparisons.
+
+The terminal's `inference=` value measures only the second, post-warm-up
+`model.generate()` call. It excludes processor creation, checkpoint loading, CUDA
+placement, input preparation, the warm-up generation, and cleanup. The Jetson metrics
+span the wider smoke-test execution, so their average values are not inference-only
+measurements.
 
 The 2.2B model's lower single generation time does not establish that it is faster. It ran
-last, reached 13.88 W while the smaller models peaked below 6.7 W, and may have benefited
+last, reached 13.78 W while the smaller models peaked at or below 6.70 W, and may have benefited
 from warmed CUDA state and higher dynamic clocks. Larger matrix operations can also use the
 GPU more efficiently while small generations remain sensitive to Python, kernel-launch,
 and synchronization overhead. Comparable performance claims require separate fresh
