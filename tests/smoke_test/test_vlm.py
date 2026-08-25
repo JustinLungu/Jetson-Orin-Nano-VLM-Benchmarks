@@ -160,12 +160,14 @@ class VlmSmokeTestAdapterTests(unittest.TestCase):
         loader.assert_called_once_with(
             "smolvlm2-256m",
             device="cuda:0",
+            precision="fp16",
             torch_module=torch,
         )
         self.assertEqual(2, model.generate.call_count)
         self.assertEqual(16, model.generate.call_args.kwargs["max_new_tokens"])
         self.assertFalse(model.generate.call_args.kwargs["do_sample"])
         self.assertEqual("passed", result.status)
+        self.assertEqual("fp16", result.runtime_precision)
         self.assertEqual(2, result.generated_tokens)
         self.assertEqual("synthetic description", result.prediction_summary)
         self.assertAlmostEqual(0.5, result.load_time_seconds)

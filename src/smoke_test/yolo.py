@@ -27,6 +27,7 @@ class YoloSmokeTestAdapter(SmokeTestAdapter):
         **kwargs: Any,
     ) -> None:
         super().__init__(selector, image_path, **kwargs)
+        self.precision = "fp16"
         if yolo_class is None:
             from ultralytics import YOLO as yolo_class
         self.model_directory = model_directory

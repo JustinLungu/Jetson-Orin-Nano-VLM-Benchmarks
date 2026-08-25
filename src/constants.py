@@ -39,6 +39,14 @@ VLM_LOADER_CLASSES = {
     "phi-3.5-vision": ("AutoModelForCausalLM", True),
 }
 
+VLM_RUNTIME_PRECISIONS = {
+    "smolvlm2-256m": ("fp32", "fp16"),
+    "smolvlm2-500m": ("fp32", "fp16"),
+    "smolvlm2-2.2b": ("fp16",),
+    "qwen2.5-vl-3b": ("fp16",),
+    "phi-3.5-vision": ("fp16",),
+}
+
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 DATASET_DIRECTORY = REPOSITORY_ROOT / "datasets"
 COCO_DIRECTORY = DATASET_DIRECTORY / "coco"

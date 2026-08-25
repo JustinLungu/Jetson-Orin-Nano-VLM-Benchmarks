@@ -15,6 +15,7 @@ from src.constants import (
     VLM_DOWNLOAD_ALLOW_PATTERNS,
     VLM_DOWNLOAD_IGNORE_PATTERNS,
     VLM_LOADER_CLASSES,
+    VLM_RUNTIME_PRECISIONS,
     YOLO_MODEL_DIRECTORY,
     YOLO_MODELS,
 )
@@ -77,7 +78,7 @@ def download_small_vlm_model(selector: str, api, downloader) -> Path:
         "repository": repository,
         "revision": revision,
         "checkpoint_dtypes": checkpoint_dtypes,
-        "jetson_runtime_dtype": "float16",
+        "supported_runtime_precisions": list(VLM_RUNTIME_PRECISIONS[selector]),
     }
     (destination / "download_metadata.json").write_text(
         json.dumps(metadata, indent=2) + "\n",
@@ -86,7 +87,7 @@ def download_small_vlm_model(selector: str, api, downloader) -> Path:
     size_gib = sum(path.stat().st_size for path in destination.rglob("*") if path.is_file())
     print(f"  ready: {destination} ({size_gib / 1024**3:.2f} GiB)")
     print(f"  checkpoint dtypes: {checkpoint_dtypes}")
-    print("  Jetson runtime dtype: float16")
+    print(f"  supported runtime precisions: {', '.join(VLM_RUNTIME_PRECISIONS[selector])}")
     return destination
 
 
@@ -107,21 +108,27 @@ def download_models(selectors: list[str]) -> None:
         download_small_vlm_model(selector, vlm_api, vlm_downloader)
 
 
-def load_vlm_fp16(
+def load_vlm(
     selector: str,
     device: str = "cuda",
     *,
+    precision: str = "fp16",
     torch_module: Any = None,
     transformers_module: Any = None,
 ) -> tuple[Any, Any]:
-    """Load a configured VLM in FP16 and fail if parameters use another dtype."""
+    """Load a configured VLM using an explicitly supported runtime precision."""
     if selector not in VLM_LOADER_CLASSES:
         raise ValueError(f"Unknown VLM selector: {selector}")
+    if precision not in VLM_RUNTIME_PRECISIONS[selector]:
+        supported = ", ".join(VLM_RUNTIME_PRECISIONS[selector])
+        raise ValueError(f"{selector} does not support {precision}; supported: {supported}")
 
     if torch_module is None:
         import torch as torch_module
     if transformers_module is None:
         import transformers as transformers_module
+
+    runtime_dtype = getattr(torch_module, "float16" if precision == "fp16" else "float32")
 
     model_path = SMALL_VLM_MODEL_DIRECTORY / selector
     if not (model_path / "config.json").is_file():
@@ -129,7 +136,8 @@ def load_vlm_fp16(
 
     from src.model_preparation.fp16 import prepared_fp16_path
 
-    model_path = prepared_fp16_path(model_path) or model_path
+    if precision == "fp16":
+        model_path = prepared_fp16_path(model_path) or model_path
 
     loader_name, trust_remote_code = VLM_LOADER_CLASSES[selector]
     loader = getattr(transformers_module, loader_name)
@@ -143,18 +151,35 @@ def load_vlm_fp16(
     )
     model = loader.from_pretrained(
         model_path,
-        dtype=torch_module.float16,
+        dtype=runtime_dtype,
         low_cpu_mem_usage=True,
         **common_arguments,
     )
     model = model.to(device).eval()
 
     parameter_dtypes = {parameter.dtype for parameter in model.parameters()}
-    if not parameter_dtypes or not parameter_dtypes.issubset({torch_module.float16}):
+    if not parameter_dtypes or not parameter_dtypes.issubset({runtime_dtype}):
         raise RuntimeError(
-            f"Expected every floating-point model parameter to be FP16, got {parameter_dtypes}"
+            f"Expected every model parameter to use {precision}, got {parameter_dtypes}"
         )
     return model, processor
+
+
+def load_vlm_fp16(
+    selector: str,
+    device: str = "cuda",
+    *,
+    torch_module: Any = None,
+    transformers_module: Any = None,
+) -> tuple[Any, Any]:
+    """Compatibility wrapper for callers that explicitly require FP16."""
+    return load_vlm(
+        selector,
+        device,
+        precision="fp16",
+        torch_module=torch_module,
+        transformers_module=transformers_module,
+    )
 
 
 def main() -> None:

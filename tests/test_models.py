@@ -93,7 +93,7 @@ class ModelDownloadTests(unittest.TestCase):
             self.assertEqual("test-revision", metadata["revision"])
             self.assertEqual(MODEL_REPOSITORIES["smolvlm2-256m"], metadata["repository"])
             self.assertEqual({"F16": 1}, metadata["checkpoint_dtypes"])
-            self.assertEqual("float16", metadata["jetson_runtime_dtype"])
+            self.assertEqual(["fp32", "fp16"], metadata["supported_runtime_precisions"])
 
     def test_vlm_download_rejects_snapshot_without_config(self) -> None:
         api = SimpleNamespace(model_info=lambda repository: SimpleNamespace(sha="revision"))
@@ -162,7 +162,7 @@ class ModelLoadingTests(unittest.TestCase):
                 AutoModelForImageTextToText=FakeLoader,
                 AutoProcessor=FakeProcessor,
             )
-            fake_torch = SimpleNamespace(float16="float16")
+            fake_torch = SimpleNamespace(float16="float16", float32="float32")
 
             with patch.object(load_models, "SMALL_VLM_MODEL_DIRECTORY", root):
                 model, processor = load_models.load_vlm_fp16(
@@ -194,12 +194,54 @@ class ModelLoadingTests(unittest.TestCase):
             )
 
             with patch.object(load_models, "SMALL_VLM_MODEL_DIRECTORY", root):
-                with self.assertRaisesRegex(RuntimeError, "Expected every.*FP16"):
+                with self.assertRaisesRegex(RuntimeError, "Expected every.*fp16"):
                     load_models.load_vlm_fp16(
                         "smolvlm2-500m",
-                        torch_module=SimpleNamespace(float16="float16"),
+                        torch_module=SimpleNamespace(float16="float16", float32="float32"),
                         transformers_module=transformers,
                     )
+
+    def test_loader_supports_native_fp32_for_small_models(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            model_directory = root / "smolvlm2-256m"
+            model_directory.mkdir()
+            (model_directory / "config.json").touch()
+            fp32_model = FakeModel("float32")
+
+            class Float32Loader:
+                arguments = None
+
+                @classmethod
+                def from_pretrained(cls, path: Path, **kwargs):
+                    cls.arguments = (path, kwargs)
+                    return fp32_model
+
+            transformers = SimpleNamespace(
+                AutoModelForImageTextToText=Float32Loader,
+                AutoProcessor=FakeProcessor,
+            )
+            torch = SimpleNamespace(float16="float16", float32="float32")
+
+            with patch.object(load_models, "SMALL_VLM_MODEL_DIRECTORY", root):
+                model, _ = load_models.load_vlm(
+                    "smolvlm2-256m",
+                    precision="fp32",
+                    torch_module=torch,
+                    transformers_module=transformers,
+                )
+
+            self.assertEqual("float32", Float32Loader.arguments[1]["dtype"])
+            self.assertEqual("cuda", model.device)
+
+    def test_loader_rejects_fp32_for_2_2b(self) -> None:
+        with self.assertRaisesRegex(ValueError, "does not support fp32"):
+            load_models.load_vlm(
+                "smolvlm2-2.2b",
+                precision="fp32",
+                torch_module=SimpleNamespace(float16="float16", float32="float32"),
+                transformers_module=SimpleNamespace(),
+            )
 
 
 if __name__ == "__main__":

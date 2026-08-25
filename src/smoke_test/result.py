@@ -15,6 +15,7 @@ class SmokeTestResult:
     status: SmokeStatus
     device: str
     runtime_versions: dict[str, str]
+    runtime_precision: str | None = None
     load_time_seconds: float | None = None
     inference_time_seconds: float | None = None
     peak_cuda_memory_mib: float | None = None

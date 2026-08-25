@@ -6,7 +6,7 @@ from typing import Any, Callable
 from PIL import Image
 
 from src.constants import MODEL_REPOSITORIES
-from src.load_models import load_vlm_fp16
+from src.load_models import load_vlm
 from src.smoke_test.base import SmokeTestAdapter
 from src.smoke_test.result import SmokeTestResult
 
@@ -24,11 +24,13 @@ class VlmSmokeTestAdapter(SmokeTestAdapter):
         selector: str,
         image_path: Path,
         *,
-        model_loader: Callable[..., tuple[Any, Any]] = load_vlm_fp16,
+        precision: str = "fp16",
+        model_loader: Callable[..., tuple[Any, Any]] = load_vlm,
         **kwargs: Any,
     ) -> None:
         super().__init__(selector, image_path, **kwargs)
         self.model_loader = model_loader
+        self.precision = precision
         self.generation_arguments: dict[str, Any] = {}
 
     def validate_selector(self) -> None:
@@ -39,6 +41,7 @@ class VlmSmokeTestAdapter(SmokeTestAdapter):
         return self.model_loader(
             self.selector,
             device=self.device,
+            precision=self.precision,
             torch_module=self.torch,
         )
 
@@ -75,13 +78,15 @@ def run_vlm_smoke_test(
     image_path: Path,
     *,
     device: str = "cuda:0",
+    precision: str = "fp16",
     torch_module: Any = None,
-    model_loader: Callable[..., tuple[Any, Any]] = load_vlm_fp16,
+    model_loader: Callable[..., tuple[Any, Any]] = load_vlm,
     clock: Callable[[], float] | None = None,
 ) -> SmokeTestResult:
     """Compatibility wrapper around :class:`VlmSmokeTestAdapter`."""
     arguments: dict[str, Any] = {
         "device": device,
+        "precision": precision,
         "torch_module": torch_module,
         "model_loader": model_loader,
     }

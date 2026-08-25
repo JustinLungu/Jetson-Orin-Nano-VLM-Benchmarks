@@ -52,5 +52,12 @@ Run single-image CUDA inference for one model, a family, or all configured model
 ./scripts/smoke_test_models.sh all
 ```
 
+Run native FP32 or optimized FP16 for SmolVLM2-256M and SmolVLM2-500M:
+
+```bash
+./scripts/smoke_test_models.sh --precision fp32 smolvlm2-256m smolvlm2-500m
+./scripts/smoke_test_models.sh --precision fp16 smolvlm2-256m smolvlm2-500m
+```
+
 Models run sequentially, and failures do not stop later selections. Results are written
 to `results/smoke/`. The script exits nonzero if any selected model fails.

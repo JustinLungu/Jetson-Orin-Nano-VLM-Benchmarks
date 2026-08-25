@@ -84,17 +84,30 @@ The script installs Hugging Face download tooling from the locked `download` gro
 
 Only files required for Transformers inference are downloaded. Alternative ONNX, GGUF, and framework checkpoints are excluded to avoid storing duplicate representations of the same model.
 
-## Jetson-optimized inference
+## Jetson inference precision
 
-VLM checkpoints are always loaded as FP16 through the shared loader, regardless of the dtype used by the files on disk:
+Runtime precision is explicit. SmolVLM2-256M and SmolVLM2-500M support their published
+FP32 precision and an optimized FP16 mode. SmolVLM2-2.2B is FP16-only on the 8 GB device
+because its FP32 tensors alone exceed visible system memory:
 
 ```python
-from src.load_models import load_vlm_fp16
+from src.load_models import load_vlm
 
-model, processor = load_vlm_fp16("smolvlm2-500m")
+model, processor = load_vlm("smolvlm2-500m", precision="fp32")
 ```
 
-The loader uses local files only and fails if the resulting model parameters are not FP16. This makes memory comparisons consistent across model repositories that publish FP32 or BF16 checkpoints.
+The loader uses local files only, validates every resulting parameter against the requested
+precision, and rejects unsafe combinations such as 2.2B FP32 before loading weights. Reports
+record `runtime_precision` so native and optimized measurements cannot be confused.
+
+SmolVLM2-2.2B FP32 is infeasible by a parameter-size lower bound, not simply untested. Its
+657 published FP32 tensors total 8,987,139,520 bytes (approximately 8.37 GiB), while Linux
+can see only about 7.44 GiB of unified memory on the 8 GB Orin Nano. The weights therefore
+cannot fit even in a hypothetical headless run using no memory for the operating system.
+CUDA context, Transformers, inputs, activations, and generation buffers increase the actual
+requirement further. Swap can assist CPU processes but cannot provide normal CUDA device
+allocations, so attempting full-GPU FP32 would only produce an OOM or risk another restart.
+The loader blocks this configuration and records FP16 as the supported 2.2B precision.
 
 ### Jetson prerequisites
 
@@ -171,6 +184,20 @@ configured model from the repository root:
 ./scripts/smoke_test_models.sh yolo
 ```
 
+Compare native FP32 and optimized FP16 for the two models that fit in either mode:
+
+```bash
+./scripts/smoke_test_models.sh --precision fp32 \
+  smolvlm2-256m smolvlm2-500m
+
+./scripts/smoke_test_models.sh --precision fp16 \
+  smolvlm2-256m smolvlm2-500m
+```
+
+The default remains `--precision fp16` for backward compatibility. FP32 is intentionally
+blocked for SmolVLM2-2.2B, Qwen2.5-VL-3B, and Phi-3.5 Vision until a safe native-precision
+policy is implemented for those models.
+
 The runner processes models sequentially and releases model objects and cached CUDA
 memory between them. A failure is recorded without stopping the remaining models. The
 command exits nonzero when any selected model fails.
@@ -192,8 +219,9 @@ Report: results/smoke/smoke-20260825T145230Z.json
 ```
 
 Each run writes a timestamped JSON report under `results/smoke/` containing runtime
-versions, load and inference times, peak CUDA memory, Jetson CPU/GPU/power/temperature
-summaries, prediction summaries, and VLM generated-token counts. The report is created
+versions, runtime precision, load and inference times, peak CUDA memory, Jetson
+CPU/GPU/power/temperature summaries, prediction summaries, and VLM generated-token counts.
+The report is created
 before inference begins and atomically updated after every model, so completed results
 survive a later model crashing or rebooting the Jetson. `selected_models` records the
 intended run and `run_completed` remains `false` until every selected model finishes.

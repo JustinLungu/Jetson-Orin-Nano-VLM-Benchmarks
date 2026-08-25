@@ -39,11 +39,16 @@ def run_selected_models(
     runners: dict[str, SmokeRunner] | None = None,
     monitor_factory: MonitorFactory = TegrastatsMonitor,
     result_callback: ResultCallback | None = None,
+    vlm_precision: str = "fp16",
 ) -> list[SmokeTestResult]:
     """Run selected models sequentially and isolate unexpected runner failures."""
     runners = runners or {
         "yolo": run_yolo_smoke_test,
-        "small-vlm": run_vlm_smoke_test,
+        "small-vlm": lambda selector, image: run_vlm_smoke_test(
+            selector,
+            image,
+            precision=vlm_precision,
+        ),
     }
     results = []
     total = len(selectors)
@@ -142,6 +147,12 @@ def main(
         metavar="MODEL",
         help="model selector(s), 'yolo', 'small-vlm', or 'all'",
     )
+    parser.add_argument(
+        "--precision",
+        choices=("fp16", "fp32"),
+        default="fp16",
+        help="VLM runtime precision; FP32 is supported only by SmolVLM2-256M/500M",
+    )
     arguments = parser.parse_args(argv)
     try:
         selectors = select_smoke_models(arguments.models)
@@ -169,6 +180,7 @@ def main(
         runners=runners,
         monitor_factory=monitor_factory,
         result_callback=checkpoint_results,
+        vlm_precision=arguments.precision,
     )
     write_smoke_report(
         results,
