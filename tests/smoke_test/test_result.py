@@ -3,7 +3,7 @@
 import json
 import unittest
 
-from src.smoke_results import SmokeTestResult
+from src.smoke_test.result import SmokeTestResult
 
 
 class SmokeTestResultTests(unittest.TestCase):

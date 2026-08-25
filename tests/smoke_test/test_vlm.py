@@ -7,7 +7,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from src.smoke_vlm import prepare_vlm_inputs, run_vlm_smoke_test
+from src.smoke_test.vlm import prepare_vlm_inputs, run_vlm_smoke_test
 
 
 class FakeOutOfMemoryError(RuntimeError):

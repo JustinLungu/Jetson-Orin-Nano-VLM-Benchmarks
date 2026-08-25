@@ -6,7 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, call, patch
 
-from src.inference_utils import (
+from src.smoke_test.runtime import (
     cleanup_cuda,
     collect_runtime_metadata,
     infer_jetpack_family,
@@ -87,8 +87,8 @@ class RuntimeMetadataTests(unittest.TestCase):
                 "# R36 (release), REVISION: 4.7, BOARD: generic\n",
                 encoding="utf-8",
             )
-            with patch("src.inference_utils.platform.machine", return_value="aarch64"), patch(
-                "src.inference_utils.platform.python_version",
+            with patch("src.smoke_test.runtime.platform.machine", return_value="aarch64"), patch(
+                "src.smoke_test.runtime.platform.python_version",
                 return_value="3.10.12",
             ):
                 metadata = collect_runtime_metadata(

@@ -6,7 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
-from src.smoke_yolo import run_yolo_smoke_test, summarize_yolo_predictions
+from src.smoke_test.yolo import run_yolo_smoke_test, summarize_yolo_predictions
 
 
 class FakeOutOfMemoryError(RuntimeError):

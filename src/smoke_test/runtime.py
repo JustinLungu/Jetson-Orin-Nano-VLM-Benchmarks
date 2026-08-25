@@ -1,4 +1,4 @@
-"""Runtime measurement and cleanup helpers shared by inference tools."""
+"""Runtime measurement and cleanup helpers shared by smoke-test adapters."""
 
 import gc
 import platform
