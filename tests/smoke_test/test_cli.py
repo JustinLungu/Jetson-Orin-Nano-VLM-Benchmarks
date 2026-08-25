@@ -112,8 +112,38 @@ class SmokeCliTests(unittest.TestCase):
 
         self.assertEqual(1, exit_code)
         self.assertEqual(1, report["schema_version"])
+        self.assertTrue(report["run_completed"])
         self.assertEqual("failed", report["results"][0]["status"])
         self.assertEqual(JETSON_METRICS, report["results"][0]["jetson_metrics"])
+
+    def test_report_is_checkpointed_after_each_model(self) -> None:
+        created_at = datetime(2026, 8, 25, 12, 30, tzinfo=timezone.utc)
+
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory)
+            report_path = output / "smoke-20260825T123000Z.json"
+
+            def runner(selector: str, image: Path) -> SmokeTestResult:
+                if selector == "yolo11n":
+                    checkpoint = json.loads(report_path.read_text(encoding="utf-8"))
+                    self.assertEqual(["yolov8n"], [item["model"] for item in checkpoint["results"]])
+                    self.assertEqual(["yolov8n", "yolo11n"], checkpoint["selected_models"])
+                    self.assertFalse(checkpoint["run_completed"])
+                return make_result(selector, "yolo")
+
+            exit_code = main(
+                ["yolov8n", "yolo11n"],
+                runners={"yolo": runner, "small-vlm": Mock()},
+                output_directory=output,
+                created_at=created_at,
+                monitor_factory=FakeMonitor,
+            )
+
+            report = json.loads(report_path.read_text(encoding="utf-8"))
+
+        self.assertEqual(0, exit_code)
+        self.assertTrue(report["run_completed"])
+        self.assertEqual(["yolov8n", "yolo11n"], [item["model"] for item in report["results"]])
 
     def test_shell_entry_point_has_valid_syntax_and_preserves_environment(self) -> None:
         subprocess.run(["bash", "-n", str(SMOKE_SCRIPT)], check=True)

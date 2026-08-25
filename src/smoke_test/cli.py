@@ -2,6 +2,7 @@
 
 import argparse
 import json
+import os
 from collections.abc import Callable, Sequence
 from dataclasses import replace
 from datetime import datetime, timezone
@@ -23,6 +24,7 @@ SMOKE_IMAGE = REPOSITORY_ROOT / "tests" / "fixtures" / "smoke_test.ppm"
 SMOKE_RESULTS_DIRECTORY = REPOSITORY_ROOT / "results" / "smoke"
 SmokeRunner = Callable[[str, Path], SmokeTestResult]
 MonitorFactory = Callable[[], TegrastatsMonitor]
+ResultCallback = Callable[[list[SmokeTestResult]], None]
 
 
 def select_smoke_models(arguments: list[str]) -> list[str]:
@@ -36,6 +38,7 @@ def run_selected_models(
     *,
     runners: dict[str, SmokeRunner] | None = None,
     monitor_factory: MonitorFactory = TegrastatsMonitor,
+    result_callback: ResultCallback | None = None,
 ) -> list[SmokeTestResult]:
     """Run selected models sequentially and isolate unexpected runner failures."""
     runners = runners or {
@@ -65,6 +68,8 @@ def run_selected_models(
             jetson_metrics = monitor.stop()
         result = replace(result, jetson_metrics=jetson_metrics)
         results.append(result)
+        if result_callback is not None:
+            result_callback(results)
         print(format_result_summary(result))
     return results
 
@@ -92,20 +97,32 @@ def write_smoke_report(
     output_directory: Path = SMOKE_RESULTS_DIRECTORY,
     *,
     created_at: datetime | None = None,
+    destination: Path | None = None,
+    selected_models: list[str] | None = None,
+    run_completed: bool = True,
 ) -> Path:
-    """Write a timestamped JSON report and return its path."""
+    """Atomically write a timestamped JSON report and return its path."""
     created_at = created_at or datetime.now(timezone.utc)
-    timestamp = created_at.strftime("%Y%m%dT%H%M%SZ")
     output_directory.mkdir(parents=True, exist_ok=True)
-    destination = output_directory / f"smoke-{timestamp}.json"
+    destination = destination or smoke_report_path(output_directory, created_at)
     report = {
         "schema_version": 1,
         "created_at": created_at.isoformat(),
         "image": str(image_path),
+        "selected_models": selected_models or [result.model for result in results],
+        "run_completed": run_completed,
         "results": [result.to_dict() for result in results],
     }
-    destination.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    temporary = destination.with_suffix(destination.suffix + ".tmp")
+    temporary.write_text(json.dumps(report, indent=2) + "\n", encoding="utf-8")
+    os.replace(temporary, destination)
     return destination
+
+
+def smoke_report_path(output_directory: Path, created_at: datetime) -> Path:
+    """Return the stable destination used throughout one smoke-test run."""
+    timestamp = created_at.strftime("%Y%m%dT%H%M%SZ")
+    return output_directory / f"smoke-{timestamp}.json"
 
 
 def main(
@@ -131,17 +148,36 @@ def main(
     except ValueError as error:
         parser.error(str(error))
 
+    report_created_at = created_at or datetime.now(timezone.utc)
+    report_path = smoke_report_path(output_directory, report_created_at)
+
+    def checkpoint_results(results: list[SmokeTestResult]) -> None:
+        write_smoke_report(
+            results,
+            SMOKE_IMAGE,
+            output_directory,
+            created_at=report_created_at,
+            destination=report_path,
+            selected_models=selectors,
+            run_completed=False,
+        )
+
+    checkpoint_results([])
     results = run_selected_models(
         selectors,
         SMOKE_IMAGE,
         runners=runners,
         monitor_factory=monitor_factory,
+        result_callback=checkpoint_results,
     )
-    report_path = write_smoke_report(
+    write_smoke_report(
         results,
         SMOKE_IMAGE,
         output_directory,
-        created_at=created_at,
+        created_at=report_created_at,
+        destination=report_path,
+        selected_models=selectors,
+        run_completed=True,
     )
     passed = sum(result.status == "passed" for result in results)
     print(f"\nPassed: {passed}/{len(results)}")
