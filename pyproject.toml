@@ -16,6 +16,7 @@ inference = [
     "transformers>=4.49,<6",
 ]
 yolo = [
+    "numpy>=1.26,<2",
     "ultralytics>=8.3,<9",
 ]
 

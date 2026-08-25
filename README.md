@@ -110,10 +110,18 @@ python3 --version
 `nvidia-smi` is not a reliable Jetson validation command and may report that it cannot
 communicate with the driver even when the integrated GPU stack is installed correctly.
 
-On the Jetson, install NVIDIA's JetPack-compatible CUDA build of PyTorch into `.venv`
-first. Do not replace it with the generic PyPI Torch wheel. NVIDIA's wheel compatibility
-table maps JetPack 6.2 to its supported PyTorch releases; follow NVIDIA's current
-[PyTorch for Jetson installation guide](https://docs.nvidia.com/deeplearning/frameworks/install-pytorch-jetson-platform/index.html), including its `libopenblas-dev` and cuSPARSELt prerequisites.
+Install the JetPack 6.2 CUDA 12.6 builds of PyTorch and TorchVision into `.venv`. The
+`+simple` suffix on the Jetson package index is required:
+
+```bash
+sudo apt install -y libopenblas-dev
+uv pip install --reinstall \
+  torch==2.8.0 torchvision==0.23.0 \
+  --index-url https://pypi.jetson-ai-lab.io/jp6/cu126/+simple
+```
+
+Do not replace these with generic PyPI wheels. The Jetson wheels require NumPy 1.x;
+the committed `yolo` dependency group and lockfile enforce that constraint.
 
 After installing the NVIDIA wheel, verify it before adding Transformers:
 
