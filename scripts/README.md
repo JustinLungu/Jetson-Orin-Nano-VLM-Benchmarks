@@ -33,6 +33,13 @@ Download individual models, a model family, or all configured models:
 ./scripts/download_models.sh all
 ```
 
+Prepare the downloaded SmolVLM2-2.2B FP32 checkpoint as persistent FP16 without deleting
+the source files:
+
+```bash
+./scripts/prepare_fp16_model.sh smolvlm2-2.2b
+```
+
 ## Model smoke tests
 
 Run single-image CUDA inference for one model, a family, or all configured models:

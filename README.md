@@ -250,10 +250,16 @@ Retry it individually rather than through `small-vlm` or `all`:
 The published SmolVLM2-2.2B checkpoint contains about 8.99 GB of FP32 tensors. The loader
 requests FP16 and already uses `low_cpu_mem_usage=True`, producing approximately 4.5 GB of
 FP16 parameters, but the on-load conversion and final runtime allocations still share the
-same physical RAM as Linux. Before retrying, the safer optimization to investigate is a
-separately preconverted local FP16 checkpoint, which avoids converting the 8.99 GB FP32
-checkpoint during every load. This requires about 4.5 GB of additional storage and must be
-validated separately before it becomes the default download path.
+same physical RAM as Linux. Prepare a persistent FP16 copy before the next controlled retry:
+
+```bash
+./scripts/prepare_fp16_model.sh smolvlm2-2.2b
+```
+
+The converter retains and validates every tensor, copies the model configuration, and leaves
+the original FP32 checkpoint untouched. The loader automatically prefers the validated FP16
+copy. It requires about 4.5 GB of additional storage and avoids converting the 8.99 GB FP32
+checkpoint during every load.
 
 Quantization or a TensorRT engine is the appropriate next experiment for Qwen2.5-VL-3B and
 Phi-3.5 Vision, but do not retry their current FP16 smoke tests on the 8 GB device. Results
