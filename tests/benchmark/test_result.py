@@ -43,6 +43,7 @@ def summary(sample_count: int = 1) -> BenchmarkSummary:
         processed_images=sample_count,
         failed_images=0,
         skipped_images=0,
+        model_load_seconds=1.25,
         mean_inference_seconds=0.5,
         median_inference_seconds=0.5,
         p95_inference_seconds=0.5,

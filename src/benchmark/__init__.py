@@ -12,14 +12,22 @@ from src.benchmark.result import (
     BenchmarkSampleResult,
     BenchmarkSummary,
 )
+from src.benchmark.runner import (
+    BenchmarkExecutionError,
+    aggregate_benchmark_results,
+    run_benchmark,
+)
 
 __all__ = (
     "BenchmarkImage",
+    "BenchmarkExecutionError",
     "BenchmarkReportWriter",
     "BenchmarkRunMetadata",
     "BenchmarkSampleResult",
     "BenchmarkSummary",
     "DatasetImageError",
     "load_benchmark_dataset",
+    "aggregate_benchmark_results",
+    "run_benchmark",
     "validate_dataset_compatibility",
 )

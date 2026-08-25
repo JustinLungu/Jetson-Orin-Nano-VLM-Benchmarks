@@ -15,7 +15,7 @@ from src.constants import (
     YOLO_MODELS,
 )
 from src.smoke_test.result import SmokeTestResult
-from src.smoke_test.runtime import TegrastatsMonitor
+from src.inference.runtime import TegrastatsMonitor
 from src.smoke_test.vlm import run_vlm_smoke_test
 from src.smoke_test.yolo import run_yolo_smoke_test
 from src.utils import select_model_names

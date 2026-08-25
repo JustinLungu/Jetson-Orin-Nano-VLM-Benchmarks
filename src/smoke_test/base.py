@@ -9,7 +9,7 @@ from PIL import Image
 
 from src.inference.base import InferenceSession
 from src.smoke_test.result import SmokeTestResult
-from src.smoke_test.runtime import (
+from src.inference.runtime import (
     cleanup_cuda,
     collect_runtime_metadata,
     is_cuda_out_of_memory,

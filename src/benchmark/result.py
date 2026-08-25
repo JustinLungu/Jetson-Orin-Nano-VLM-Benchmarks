@@ -69,6 +69,7 @@ class BenchmarkSummary:
     processed_images: int
     failed_images: int
     skipped_images: int
+    model_load_seconds: float
     mean_inference_seconds: float | None
     median_inference_seconds: float | None
     p95_inference_seconds: float | None
@@ -87,6 +88,7 @@ class BenchmarkSummary:
             "total_run_seconds",
             "images_per_second",
             "generated_tokens_per_second",
+            "model_load_seconds",
         ):
             value = getattr(self, field_name)
             if value is not None and value < 0:

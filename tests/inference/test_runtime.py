@@ -1,4 +1,4 @@
-"""Offline tests for shared inference lifecycle utilities."""
+"""Offline tests for shared inference runtime utilities."""
 
 import tempfile
 import unittest
@@ -6,7 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, call, patch
 
-from src.smoke_test.runtime import (
+from src.inference.runtime import (
     cleanup_cuda,
     collect_runtime_metadata,
     infer_jetpack_family,
@@ -89,8 +89,8 @@ class RuntimeMetadataTests(unittest.TestCase):
                 "# R36 (release), REVISION: 4.7, BOARD: generic\n",
                 encoding="utf-8",
             )
-            with patch("src.smoke_test.runtime.platform.machine", return_value="aarch64"), patch(
-                "src.smoke_test.runtime.platform.python_version",
+            with patch("src.inference.runtime.platform.machine", return_value="aarch64"), patch(
+                "src.inference.runtime.platform.python_version",
                 return_value="3.10.12",
             ):
                 metadata = collect_runtime_metadata(
