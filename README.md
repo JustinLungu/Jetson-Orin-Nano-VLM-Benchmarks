@@ -258,12 +258,12 @@ span the wider smoke-test execution, so their average values are not inference-o
 measurements.
 
 The 2.2B model's lower single generation time does not establish that it is faster. It ran
-last, reached 13.78 W while the smaller models peaked at or below 6.70 W, and may have benefited
-from warmed CUDA state and higher dynamic clocks. Larger matrix operations can also use the
-GPU more efficiently while small generations remain sensitive to Python, kernel-launch,
-and synchronization overhead. Comparable performance claims require separate fresh
-processes, fixed power/clocks, multiple warm-ups, repeated measurements, and median and p95
-statistics.
+last, reached 13.78 W while the smaller models peaked at or below 6.70 W, and may have
+benefited from warmed CUDA state and higher dynamic clocks. Larger matrix operations can
+also use the GPU more efficiently while small generations remain sensitive to Python,
+kernel-launch, and synchronization overhead. Comparable performance claims require
+separate fresh processes, fixed power/clocks, multiple warm-ups, repeated measurements,
+and median and p95 statistics.
 
 The PyTorch CUDA peak is only memory tracked by PyTorch's CUDA allocator. Jetson CPU and
 GPU allocations share physical RAM, so it must not be interpreted as total system memory
@@ -356,6 +356,77 @@ Quantization or a TensorRT engine is a separate future research direction for
 Qwen2.5-VL-3B and Phi-3.5 Vision, not part of this smoke-test branch. Results from another
 precision or backend must be reported separately rather than compared directly with FP16.
 
-The shell entry point uses `uv run --no-sync` intentionally. Smoke tests must preserve
-the validated JetPack-compatible Torch build instead of synchronizing generic PyPI
-Torch from the cross-platform lockfile.
+## Performance benchmarks
+
+Benchmarks load one validated model once and process every image in its supported dataset
+at batch size 1. They measure runtime behavior only; labels, accuracy, IoU, and prediction
+quality are intentionally excluded.
+
+| Model | Dataset | Supported precision |
+| --- | --- | --- |
+| YOLOv8n, YOLO11n, YOLO26n | COCO 2017 validation (5,000 images) | FP16 |
+| SmolVLM2-256M | Imagenette validation (3,925 images) | FP16, FP32 |
+| SmolVLM2-500M | Imagenette validation (3,925 images) | FP16, FP32 |
+| SmolVLM2-2.2B | Imagenette validation (3,925 images) | FP16 only |
+
+Qwen2.5-VL-3B and Phi-3.5 Vision are rejected before loading. YOLO precision is fixed, so
+do not pass `--precision` for YOLO. VLM precision must always be explicit.
+
+Start with a limited development run:
+
+```bash
+./scripts/run_benchmark.sh yolo11n coco --limit 10
+
+./scripts/run_benchmark.sh smolvlm2-256m imagenette \
+  --precision fp16 --limit 10
+```
+
+When that succeeds, omit `--limit` to process the complete dataset:
+
+```bash
+./scripts/run_benchmark.sh yolo11n coco
+
+./scripts/run_benchmark.sh smolvlm2-256m imagenette --precision fp16
+./scripts/run_benchmark.sh smolvlm2-256m imagenette --precision fp32
+./scripts/run_benchmark.sh smolvlm2-500m imagenette --precision fp16
+./scripts/run_benchmark.sh smolvlm2-500m imagenette --precision fp32
+```
+
+Run SmolVLM2-2.2B alone and preferably headless because its smoke test reached about
+7.2/7.6 GB total RAM:
+
+```bash
+./scripts/run_benchmark.sh smolvlm2-2.2b imagenette --precision fp16
+```
+
+The default is three excluded warm-up iterations. Override it with `--warmup`, or choose
+an exact report path with `--output`. Each invocation writes one timestamped JSON file
+under `results/benchmarks/` and atomically checkpoints after every image. An interrupted
+run remains valid with `run_completed: false`.
+
+The report retains one synchronized inference latency per image and summarizes mean,
+median, and nearest-rank p95 latency. `images_per_second` is successful images divided by
+their summed inference time. VLM reports also include generated tokens and aggregate
+tokens per second. Model load time and total run time are separate.
+
+Timing scopes differ by family. VLM latency measures the deterministic 16-token
+`model.generate()` call after processor input preparation. YOLO latency measures the
+Ultralytics `predict()` call, which includes its internal preprocessing and postprocessing.
+Compare models within the same family and configuration; do not rank YOLO against VLMs
+using these latency fields.
+
+Jetson summaries contain RAM before loading, RAM after loading, peak total RAM, peak swap,
+peak PyTorch CUDA allocation, average and peak board power, and peak temperature. Power
+and temperature span loading, warm-up, and dataset processing rather than inference alone.
+If `tegrastats` is unavailable, the run continues with memory metrics and marks the missing
+board telemetry explicitly.
+
+For comparable research runs, keep JetPack/L4T and package versions, power mode, cooling,
+warm-up count, desktop/headless state, prompt, token limit, image handling, and checkpoint
+revision fixed. The JSON records the software environment, checkpoint identity, precision,
+warm-up count, and desktop state; note the chosen power and cooling setup alongside any
+published results.
+
+The smoke-test and benchmark shell entry points use `uv run --no-sync` intentionally. They
+must preserve the validated JetPack-compatible Torch build instead of synchronizing
+generic PyPI Torch from the cross-platform lockfile.

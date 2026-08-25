@@ -63,3 +63,20 @@ Run native FP32 or optimized FP16 for SmolVLM2-256M and SmolVLM2-500M:
 
 Models run sequentially, and failures do not stop later selections. Results are written
 to `results/smoke/`. The script exits nonzero if any selected model fails.
+
+## Performance benchmarks
+
+Run a short development benchmark before processing a complete dataset:
+
+```bash
+./scripts/run_benchmark.sh yolo11n coco --limit 10
+./scripts/run_benchmark.sh smolvlm2-256m imagenette --precision fp16 --limit 10
+```
+
+Omit `--limit` for the full dataset. VLMs require `--precision fp16` or
+`--precision fp32`; YOLO uses FP16 and rejects the precision option. SmolVLM2-2.2B
+supports FP16 only and should run alone in a headless session. Qwen2.5-VL-3B and
+Phi-3.5 Vision are blocked for safety.
+
+Reports are atomically checkpointed under `results/benchmarks/`. Use `--warmup` to change
+the default three excluded warm-ups and `--output` to select an exact JSON path.
