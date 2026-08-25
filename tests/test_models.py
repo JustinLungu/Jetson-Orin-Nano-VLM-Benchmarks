@@ -173,7 +173,7 @@ class ModelLoadingTests(unittest.TestCase):
 
             self.assertEqual("processor", processor)
             self.assertEqual("cuda", model.device)
-            self.assertEqual("float16", FakeLoader.arguments[1]["torch_dtype"])
+            self.assertEqual("float16", FakeLoader.arguments[1]["dtype"])
             self.assertTrue(FakeLoader.arguments[1]["local_files_only"])
 
     def test_loader_rejects_non_fp16_parameters(self) -> None:

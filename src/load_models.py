@@ -139,7 +139,7 @@ def load_vlm_fp16(
     )
     model = loader.from_pretrained(
         model_path,
-        torch_dtype=torch_module.float16,
+        dtype=torch_module.float16,
         low_cpu_mem_usage=True,
         **common_arguments,
     )
