@@ -42,15 +42,17 @@ the source files:
 
 ## Model smoke tests
 
-Run single-image CUDA inference for one model, a family, or all configured models:
+Run single-image CUDA inference for one validated model or the YOLO family:
 
 ```bash
 ./scripts/smoke_test_models.sh smolvlm2-256m
 ./scripts/smoke_test_models.sh yolo11n
-./scripts/smoke_test_models.sh small-vlm
 ./scripts/smoke_test_models.sh yolo
-./scripts/smoke_test_models.sh all
 ```
+
+Do not use the `small-vlm` or `all` selectors on the 8 GB Orin Nano. They include
+Qwen2.5-VL-3B and Phi-3.5 Vision; Qwen exhausted unified memory and restarted the device,
+and Phi was intentionally not attempted after that capacity boundary was established.
 
 Run native FP32 or optimized FP16 for SmolVLM2-256M and SmolVLM2-500M:
 

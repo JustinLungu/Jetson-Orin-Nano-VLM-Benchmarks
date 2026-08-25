@@ -172,10 +172,10 @@ Jetson? They do not evaluate prediction accuracy. Run one model, a family, or ev
 configured model from the repository root:
 
 > [!WARNING]
-> Do not use `small-vlm` or `all` on the 8 GB Orin Nano. An earlier
-> Qwen2.5-VL-3B FP16 attempt on L4T 36.4.7 froze and restarted the device, and
-> Phi-3.5 Vision has not been validated. Run large models individually under controlled
-> memory conditions so one unsafe model cannot terminate the remaining experiments.
+> Do not use `small-vlm` or `all` on the 8 GB Orin Nano. Qwen2.5-VL-3B FP16
+> restarted the device during weight loading on both L4T 36.4.7 and 36.5.2.
+> Phi-3.5 Vision was intentionally not attempted because it is larger and the established
+> capacity limit makes another restart predictable. Run only validated models individually.
 
 ```bash
 ./scripts/smoke_test_models.sh smolvlm2-256m
@@ -286,8 +286,9 @@ produce a JSON result:
 | --- | --- | --- |
 | SmolVLM2-2.2B, original FP32 checkpoint on L4T 36.4.7 | Reached about 6.9/7.6 GB RAM and 2.5 GB swap, then failed during loading/CUDA placement | Failed configuration; preserved to show why checkpoint representation and L4T version matter |
 | SmolVLM2-2.2B, prepared FP16 checkpoint on L4T 36.5.2 | Loaded all 657 tensors, reached about 7.2/7.6 GB total RAM, and generated all 16 tokens | Conditionally supported; use an individual run and prefer a headless environment for full benchmarks |
-| Qwen2.5-VL-3B on L4T 36.4.7 | Froze the device and caused an automatic restart | Not validated on 36.5.2; any retest must be individual and headless, with recovery available |
-| Phi-3.5 Vision | Not reached because Qwen restarted the device | Unvalidated; do not include in a family run on the 8 GB configuration |
+| Qwen2.5-VL-3B FP16 on L4T 36.4.7 | Froze the device and caused an automatic restart | Unsupported with the current Transformers FP16 loading path |
+| Qwen2.5-VL-3B FP16 on L4T 36.5.2 | Reached about 53% of weight loading and 7.2-7.3/7.6 GB total RAM, then restarted the device; the checkpoint report remained incomplete with no model result | Confirms a unified-memory capacity failure; do not repeat this loading configuration |
+| Phi-3.5 Vision FP16 | Intentionally not attempted after the smaller Qwen model exhausted the device | Not validated and excluded from the current supported set; a restart-prone test would add little information |
 
 L4T 36.4.7 also intermittently printed `NvMapMemAllocInternalTagged ... error 12` during
 successful YOLO and VLM runs. Because inference sometimes continued, these messages did
@@ -345,15 +346,15 @@ sudo systemctl isolate graphical.target
 ```
 
 Removing the graphical baseline should give the 2.2B full-dataset benchmark a safer memory
-margin. It also creates a justified future research question: Qwen2.5-VL-3B may become
-loadable on L4T 36.5.2 in a fully headless session, potentially with a persistent FP16 or
-quantized checkpoint. This has not been tested and must not be stated as support. A future
-Qwen experiment should run by itself, checkpoint results before loading, monitor unified
-memory externally, and assume that another reboot remains possible.
+margin. It did not make Qwen2.5-VL-3B viable with the current FP16 Transformers loading
+path: the model restarted the device at about 53% of weight loading. The runner's atomic
+checkpoint preserved `results/smoke/smoke-20260825T223231Z.json` with
+`run_completed: false`, which distinguishes the interrupted experiment from a completed
+CUDA OOM result.
 
-Quantization or a TensorRT engine is the appropriate next experiment for Qwen2.5-VL-3B and
-Phi-3.5 Vision if headless FP16 placement still fails. Results from another precision or
-backend must be reported separately rather than compared directly with FP16.
+Quantization or a TensorRT engine is a separate future research direction for
+Qwen2.5-VL-3B and Phi-3.5 Vision, not part of this smoke-test branch. Results from another
+precision or backend must be reported separately rather than compared directly with FP16.
 
 The shell entry point uses `uv run --no-sync` intentionally. Smoke tests must preserve
 the validated JetPack-compatible Torch build instead of synchronizing generic PyPI
