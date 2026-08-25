@@ -12,6 +12,7 @@ from src.benchmark.result import (
     BenchmarkSampleResult,
     BenchmarkSummary,
 )
+from src.benchmark.telemetry import BenchmarkTelemetry
 from src.inference.base import InferenceSession
 from src.inference.runtime import (
     cleanup_cuda,
@@ -31,17 +32,23 @@ def run_benchmark(
     *,
     warmup_iterations: int,
     clock: Callable[[], float] = time.perf_counter,
+    telemetry: BenchmarkTelemetry | None = None,
 ) -> BenchmarkSummary:
     """Load once, benchmark every image, and atomically checkpoint each result."""
     _validate_run_configuration(session, writer, warmup_iterations)
     results: list[BenchmarkSampleResult] = []
     writer.write(results)
+    telemetry = telemetry or BenchmarkTelemetry(session.torch, session.device)
     run_started = clock()
-    load_started = clock()
+    telemetry_started = False
     try:
+        telemetry.start()
+        telemetry_started = True
+        load_started = clock()
         session.load()
         session.torch.cuda.synchronize()
         model_load_seconds = clock() - load_started
+        telemetry.mark_model_loaded()
         _run_warmups(session, dataset, warmup_iterations)
 
         for sample in dataset:
@@ -59,9 +66,24 @@ def run_benchmark(
             model_load_seconds=model_load_seconds,
             total_run_seconds=total_run_seconds,
         )
-        writer.write(results, run_completed=True, summary=summary)
+        metrics = telemetry.stop()
+        telemetry_started = False
+        writer.write(
+            results,
+            run_completed=True,
+            summary=summary,
+            jetson_metrics=metrics,
+        )
         return summary
+    except BaseException:
+        if telemetry_started:
+            metrics = telemetry.stop()
+            telemetry_started = False
+            writer.write(results, jetson_metrics=metrics)
+        raise
     finally:
+        if telemetry_started:
+            telemetry.stop()
         session.close()
         cleanup_cuda(session.torch)
 

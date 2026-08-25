@@ -11,12 +11,14 @@ from src.benchmark.result import (
     BenchmarkRunMetadata,
     BenchmarkSampleResult,
     BenchmarkSummary,
+    JetsonBenchmarkMetrics,
 )
 from src.benchmark.runner import (
     BenchmarkExecutionError,
     aggregate_benchmark_results,
     run_benchmark,
 )
+from src.benchmark.telemetry import BenchmarkTelemetry, MemorySnapshot
 
 __all__ = (
     "BenchmarkImage",
@@ -25,6 +27,9 @@ __all__ = (
     "BenchmarkRunMetadata",
     "BenchmarkSampleResult",
     "BenchmarkSummary",
+    "BenchmarkTelemetry",
+    "JetsonBenchmarkMetrics",
+    "MemorySnapshot",
     "DatasetImageError",
     "load_benchmark_dataset",
     "aggregate_benchmark_results",

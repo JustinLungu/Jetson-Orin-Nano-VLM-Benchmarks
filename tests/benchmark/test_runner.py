@@ -14,6 +14,7 @@ from src.benchmark.result import (
     BenchmarkReportWriter,
     BenchmarkRunMetadata,
     BenchmarkSampleResult,
+    JetsonBenchmarkMetrics,
 )
 from src.benchmark.runner import (
     BenchmarkExecutionError,
@@ -80,6 +81,35 @@ class FakeSession(InferenceSession):
         super().close()
 
 
+class FakeTelemetry:
+    def __init__(self) -> None:
+        self.start_calls = 0
+        self.model_loaded_calls = 0
+        self.stop_calls = 0
+        self.metrics = JetsonBenchmarkMetrics(
+            ram_total_mib=7620,
+            ram_before_load_mib=1700,
+            ram_after_load_mib=2200,
+            peak_ram_used_mib=2400,
+            peak_swap_used_mib=10,
+            peak_cuda_memory_mib=533.1,
+            average_power_watts=5.0,
+            peak_power_watts=6.0,
+            peak_temperature_celsius=48.0,
+            tegrastats_available=True,
+        )
+
+    def start(self) -> None:
+        self.start_calls += 1
+
+    def mark_model_loaded(self) -> None:
+        self.model_loaded_calls += 1
+
+    def stop(self) -> JetsonBenchmarkMetrics:
+        self.stop_calls += 1
+        return self.metrics
+
+
 def metadata(warmups: int = 1) -> BenchmarkRunMetadata:
     return BenchmarkRunMetadata(
         model="smolvlm2-256m",
@@ -107,6 +137,7 @@ def write_images(directory: Path, count: int) -> tuple[BenchmarkImage, ...]:
 class BenchmarkRunnerTests(unittest.TestCase):
     def test_loads_once_excludes_warmup_and_aggregates_latency(self) -> None:
         session = FakeSession()
+        telemetry = FakeTelemetry()
         clock = Mock(
             side_effect=(
                 0.0,
@@ -131,6 +162,7 @@ class BenchmarkRunnerTests(unittest.TestCase):
                 writer,
                 warmup_iterations=1,
                 clock=clock,
+                telemetry=telemetry,
             )
             report = json.loads(destination.read_text(encoding="utf-8"))
 
@@ -139,6 +171,9 @@ class BenchmarkRunnerTests(unittest.TestCase):
         self.assertEqual(1, session.close_calls)
         self.assertEqual(8, session.torch.cuda.synchronizations)
         self.assertEqual(1, session.torch.cuda.empty_cache_calls)
+        self.assertEqual(1, telemetry.start_calls)
+        self.assertEqual(1, telemetry.model_loaded_calls)
+        self.assertEqual(1, telemetry.stop_calls)
         self.assertAlmostEqual(0.5, summary.model_load_seconds)
         self.assertAlmostEqual(0.2, summary.mean_inference_seconds)
         self.assertAlmostEqual(0.2, summary.median_inference_seconds)
@@ -147,9 +182,11 @@ class BenchmarkRunnerTests(unittest.TestCase):
         self.assertAlmostEqual(10.0, summary.generated_tokens_per_second)
         self.assertEqual(3, len(report["samples"]))
         self.assertTrue(report["run_completed"])
+        self.assertEqual(2400, report["jetson_metrics"]["peak_ram_used_mib"])
 
     def test_load_failure_preserves_empty_incomplete_report(self) -> None:
         session = FakeSession()
+        telemetry = FakeTelemetry()
         session.load = Mock(side_effect=RuntimeError("load failed"))
         with tempfile.TemporaryDirectory() as directory:
             destination = Path(directory) / "benchmark.json"
@@ -161,6 +198,7 @@ class BenchmarkRunnerTests(unittest.TestCase):
                     writer,
                     warmup_iterations=0,
                     clock=Mock(side_effect=(0.0, 0.1)),
+                    telemetry=telemetry,
                 )
             report = json.loads(destination.read_text(encoding="utf-8"))
 
@@ -199,6 +237,7 @@ class BenchmarkRunnerTests(unittest.TestCase):
 
     def test_cuda_oom_is_checkpointed_and_stops_the_run(self) -> None:
         session = FakeSession()
+        telemetry = FakeTelemetry()
         session.infer = Mock(side_effect=FakeOutOfMemoryError("CUDA out of memory"))
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
@@ -211,6 +250,7 @@ class BenchmarkRunnerTests(unittest.TestCase):
                     writer,
                     warmup_iterations=0,
                     clock=Mock(side_effect=(0.0, 0.1, 0.2, 0.3)),
+                    telemetry=telemetry,
                 )
             report = json.loads(destination.read_text(encoding="utf-8"))
 

@@ -112,12 +112,12 @@ class RuntimeMetadataTests(unittest.TestCase):
 
 class TegrastatsParsingTests(unittest.TestCase):
     SAMPLE_ONE = (
-        "RAM 3415/7620MB CPU [75%@1344,85%@1344,off,79%@1344] "
+        "RAM 3415/7620MB SWAP 654/3810MB CPU [75%@1344,85%@1344,off,79%@1344] "
         "GR3D_FREQ 13%@[917] cpu@49.031C gpu@48.406C tj@49.031C "
         "VDD_IN 8527mW/4783mW"
     )
     SAMPLE_TWO = (
-        "RAM 3488/7620MB CPU [81%@1344,68%@1344,66%@1344] "
+        "RAM 3488/7620MB SWAP 700/3810MB CPU [81%@1344,68%@1344,66%@1344] "
         "GR3D_FREQ 47%@[712] cpu@49.343C gpu@48.468C tj@49.156C "
         "VDD_IN 8147mW/4814mW"
     )
@@ -129,6 +129,8 @@ class TegrastatsParsingTests(unittest.TestCase):
         self.assertEqual(13.0, sample["gpu"])
         self.assertEqual(8.527, sample["power_watts"])
         self.assertEqual(49.031, sample["temperature_celsius"])
+        self.assertEqual(3415, sample["ram_used_mib"])
+        self.assertEqual(654, sample["swap_used_mib"])
 
     def test_summarizes_average_and_peak(self) -> None:
         samples = [

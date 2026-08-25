@@ -96,6 +96,38 @@ class BenchmarkSummary:
 
 
 @dataclass(frozen=True, slots=True)
+class JetsonBenchmarkMetrics:
+    """Essential memory, power, and temperature measurements for one run."""
+
+    ram_total_mib: float
+    ram_before_load_mib: float
+    ram_after_load_mib: float | None
+    peak_ram_used_mib: float
+    peak_swap_used_mib: float
+    peak_cuda_memory_mib: float | None
+    average_power_watts: float | None
+    peak_power_watts: float | None
+    peak_temperature_celsius: float | None
+    tegrastats_available: bool
+
+    def __post_init__(self) -> None:
+        for field_name in (
+            "ram_total_mib",
+            "ram_before_load_mib",
+            "ram_after_load_mib",
+            "peak_ram_used_mib",
+            "peak_swap_used_mib",
+            "peak_cuda_memory_mib",
+            "average_power_watts",
+            "peak_power_watts",
+            "peak_temperature_celsius",
+        ):
+            value = getattr(self, field_name)
+            if value is not None and value < 0:
+                raise ValueError(f"{field_name} cannot be negative")
+
+
+@dataclass(frozen=True, slots=True)
 class BenchmarkReport:
     """Complete or checkpointed state of one benchmark invocation."""
 
@@ -104,6 +136,7 @@ class BenchmarkReport:
     samples: tuple[BenchmarkSampleResult, ...]
     run_completed: bool
     summary: BenchmarkSummary | None = None
+    jetson_metrics: JetsonBenchmarkMetrics | None = None
     schema_version: int = BENCHMARK_SCHEMA_VERSION
 
     def __post_init__(self) -> None:
@@ -148,6 +181,7 @@ class BenchmarkReportWriter:
         *,
         run_completed: bool = False,
         summary: BenchmarkSummary | None = None,
+        jetson_metrics: JetsonBenchmarkMetrics | None = None,
     ) -> Path:
         """Replace the report atomically with the supplied progress snapshot."""
         report = BenchmarkReport(
@@ -156,6 +190,7 @@ class BenchmarkReportWriter:
             samples=tuple(samples),
             run_completed=run_completed,
             summary=summary,
+            jetson_metrics=jetson_metrics,
         )
         self.destination.parent.mkdir(parents=True, exist_ok=True)
         temporary = self.destination.with_suffix(self.destination.suffix + ".tmp")
