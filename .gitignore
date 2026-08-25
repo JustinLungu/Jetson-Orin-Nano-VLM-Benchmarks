@@ -8,3 +8,6 @@ datasets/coco/images/
 datasets/coco/annotations/
 datasets/imagenette/validation/
 datasets/imagenette/validation_labels.csv
+docs/
+results/*
+!results/README.md
