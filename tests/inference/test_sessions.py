@@ -24,9 +24,13 @@ class FakeOutput(FakeTensor):
         return FakeOutput(self.shape[-1] - start)
 
 
+class FakePixelTensor:
+    shape = (1, 1, 3, 384, 512)
+
+
 class FakeInputs(dict):
     def __init__(self) -> None:
-        super().__init__(input_ids=FakeTensor(3), pixel_values="pixels")
+        super().__init__(input_ids=FakeTensor(3), pixel_values=FakePixelTensor())
 
     def to(self, device: str):
         return self
@@ -69,6 +73,7 @@ class InferenceSessionTests(unittest.TestCase):
         self.assertEqual(2, model.generate.call_count)
         self.assertEqual("synthetic description", summary)
         self.assertEqual(2, generated_tokens)
+        self.assertEqual((512, 384), session.processed_image_size(second))
 
         session.close()
         self.assertIsNone(session.model)
@@ -97,11 +102,22 @@ class InferenceSessionTests(unittest.TestCase):
         summary, generated_tokens = session.summarize(second_output, second)
         yolo_class.assert_called_once()
         self.assertEqual(2, model.predict.call_count)
+        self.assertFalse(second["rect"])
+        self.assertEqual((320, 320), session.processed_image_size(second))
         self.assertEqual("detections=1", summary)
         self.assertIsNone(generated_tokens)
 
         session.close()
         self.assertIsNone(session.model)
+
+    def test_yolo_rejects_a_size_ultralytics_would_adjust(self) -> None:
+        with self.assertRaisesRegex(ValueError, "positive multiple of 32"):
+            YoloInferenceSession(
+                "yolo11n",
+                image_size=641,
+                torch_module=SimpleNamespace(),
+                yolo_class=Mock(),
+            )
 
 
 if __name__ == "__main__":

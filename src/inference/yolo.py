@@ -31,6 +31,8 @@ class YoloInferenceSession(InferenceSession):
             from ultralytics import YOLO as yolo_class
         self.model_directory = model_directory
         self.yolo_class = yolo_class
+        if image_size <= 0 or image_size % 32 != 0:
+            raise ValueError("YOLO image_size must be a positive multiple of 32")
         self.image_size = image_size
 
     def load(self) -> None:
@@ -46,6 +48,7 @@ class YoloInferenceSession(InferenceSession):
             "source": image,
             "device": self.device,
             "imgsz": self.image_size,
+            "rect": False,
             "quantize": 16,
             "verbose": False,
         }
@@ -54,6 +57,11 @@ class YoloInferenceSession(InferenceSession):
         if self.model is None:
             raise RuntimeError("YOLO session must be loaded before inference")
         return self.model.predict(**prepared)
+
+    def processed_image_size(self, prepared: dict[str, Any]) -> tuple[int, int]:
+        """Return the fixed square tensor shape requested from Ultralytics."""
+        image_size = int(prepared["imgsz"])
+        return image_size, image_size
 
     def summarize(
         self,

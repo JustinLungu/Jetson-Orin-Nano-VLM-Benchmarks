@@ -35,9 +35,10 @@ from src.inference.vlm import VlmInferenceSession
 from src.inference.yolo import YoloInferenceSession
 
 BENCHMARK_RESULTS_DIRECTORY = REPOSITORY_ROOT / "results" / "benchmarks"
+DEFAULT_BENCHMARK_YOLO_IMAGE_SIZE = 640
 UNSAFE_BENCHMARK_MODELS = {"qwen2.5-vl-3b", "phi-3.5-vision"}
 DatasetLoader = Callable[..., BenchmarkDataset]
-SessionFactory = Callable[[str, str], InferenceSession]
+SessionFactory = Callable[[str, str, int | None], InferenceSession]
 BenchmarkRunner = Callable[..., BenchmarkSummary]
 
 
@@ -72,10 +73,21 @@ def validate_benchmark_configuration(
     return family, precision
 
 
-def create_inference_session(model: str, precision: str) -> InferenceSession:
+def create_inference_session(
+    model: str,
+    precision: str,
+    yolo_image_size: int | None = None,
+) -> InferenceSession:
     """Create the validated family-specific loaded-model session."""
     if model in YOLO_MODELS:
-        return YoloInferenceSession(model)
+        return YoloInferenceSession(
+            model,
+            image_size=(
+                DEFAULT_BENCHMARK_YOLO_IMAGE_SIZE
+                if yolo_image_size is None
+                else yolo_image_size
+            ),
+        )
     return VlmInferenceSession(model, precision=precision)
 
 
@@ -176,6 +188,11 @@ def main(
     )
     parser.add_argument("--warmup", type=int, default=3, help="excluded warm-up runs")
     parser.add_argument("--limit", type=int, help="development-only image limit")
+    parser.add_argument(
+        "--image-size",
+        type=int,
+        help="YOLO square input size (default: 640); invalid for VLMs",
+    )
     parser.add_argument("--output", type=Path, help="exact destination JSON path")
     arguments = parser.parse_args(argv)
 
@@ -189,9 +206,21 @@ def main(
             raise ValueError("--warmup cannot be negative")
         if arguments.limit is not None and arguments.limit <= 0:
             raise ValueError("--limit must be a positive integer")
+        if family == "yolo":
+            yolo_image_size = (
+                DEFAULT_BENCHMARK_YOLO_IMAGE_SIZE
+                if arguments.image_size is None
+                else arguments.image_size
+            )
+            if yolo_image_size <= 0 or yolo_image_size % 32 != 0:
+                raise ValueError("--image-size must be a positive multiple of 32")
+        else:
+            if arguments.image_size is not None:
+                raise ValueError("--image-size is only valid for YOLO benchmarks")
+            yolo_image_size = None
 
         dataset = dataset_loader(arguments.dataset, limit=arguments.limit)
-        session = session_factory(arguments.model, precision)
+        session = session_factory(arguments.model, precision, yolo_image_size)
         desktop_active = desktop_detector()
         metadata = BenchmarkRunMetadata(
             model=arguments.model,
@@ -207,6 +236,8 @@ def main(
             selected_images=len(dataset),
             requested_limit=dataset.requested_limit,
             run_scope=dataset.run_scope,
+            input_profile="fixed-square" if family == "yolo" else "model-native",
+            requested_image_size=yolo_image_size,
         )
         report_created_at = created_at or datetime.now(timezone.utc)
         report_path = arguments.output or benchmark_report_path(

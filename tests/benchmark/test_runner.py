@@ -73,6 +73,9 @@ class FakeSession(InferenceSession):
         self.inference_calls += 1
         return object()
 
+    def processed_image_size(self, prepared: object) -> tuple[int, int]:
+        return 384, 384
+
     def summarize(self, output: object, prepared: object) -> tuple[str, int]:
         return "complete", 2
 
@@ -125,6 +128,8 @@ def metadata(warmups: int = 1) -> BenchmarkRunMetadata:
         selected_images=3,
         requested_limit=None,
         run_scope="full",
+        input_profile="model-native",
+        requested_image_size=None,
     )
 
 
@@ -187,6 +192,8 @@ class BenchmarkRunnerTests(unittest.TestCase):
         self.assertEqual(3, len(report["samples"]))
         self.assertEqual(1, report["samples"][0]["source_width"])
         self.assertEqual(1, report["samples"][0]["source_height"])
+        self.assertEqual(384, report["samples"][0]["processed_width"])
+        self.assertEqual(384, report["samples"][0]["processed_height"])
         self.assertTrue(report["run_completed"])
         self.assertEqual(2400, report["jetson_metrics"]["peak_ram_used_mib"])
 

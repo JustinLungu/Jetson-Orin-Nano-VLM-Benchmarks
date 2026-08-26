@@ -9,7 +9,7 @@ from typing import Any, Literal, Sequence
 
 BenchmarkSampleStatus = Literal["passed", "failed", "skipped"]
 BenchmarkRunScope = Literal["limited", "full"]
-BENCHMARK_SCHEMA_VERSION = 2
+BENCHMARK_SCHEMA_VERSION = 3
 
 
 @dataclass(frozen=True, slots=True)
@@ -29,6 +29,8 @@ class BenchmarkRunMetadata:
     selected_images: int
     requested_limit: int | None
     run_scope: BenchmarkRunScope
+    input_profile: str
+    requested_image_size: int | None
 
     def __post_init__(self) -> None:
         if self.batch_size <= 0:
@@ -46,6 +48,15 @@ class BenchmarkRunMetadata:
         expected_scope = "limited" if self.requested_limit is not None else "full"
         if self.run_scope != expected_scope:
             raise ValueError("run_scope does not match requested_limit")
+        if self.input_profile not in {"fixed-square", "model-native"}:
+            raise ValueError(f"Unknown input_profile: {self.input_profile}")
+        if self.input_profile == "fixed-square":
+            if self.requested_image_size is None or self.requested_image_size <= 0:
+                raise ValueError(
+                    "fixed-square input requires a positive requested_image_size"
+                )
+        elif self.requested_image_size is not None:
+            raise ValueError("model-native input cannot request a fixed image size")
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,6 +72,8 @@ class BenchmarkSampleResult:
     error_message: str | None = None
     source_width: int | None = None
     source_height: int | None = None
+    processed_width: int | None = None
+    processed_height: int | None = None
 
     def __post_init__(self) -> None:
         if self.status not in {"passed", "failed", "skipped"}:
@@ -86,6 +99,16 @@ class BenchmarkSampleResult:
             and (self.source_width <= 0 or self.source_height <= 0)
         ):
             raise ValueError("source image dimensions must be positive")
+        if (self.processed_width is None) != (self.processed_height is None):
+            raise ValueError(
+                "processed_width and processed_height must be recorded together"
+            )
+        if (
+            self.processed_width is not None
+            and self.processed_height is not None
+            and (self.processed_width <= 0 or self.processed_height <= 0)
+        ):
+            raise ValueError("processed image dimensions must be positive")
 
 
 @dataclass(frozen=True, slots=True)

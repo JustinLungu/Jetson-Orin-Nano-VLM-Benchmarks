@@ -86,6 +86,7 @@ class YoloSmokeTestAdapterTests(unittest.TestCase):
         self.assertEqual("RGB", prediction_arguments["source"].mode)
         self.assertEqual("cuda:0", prediction_arguments["device"])
         self.assertEqual(320, prediction_arguments["imgsz"])
+        self.assertFalse(prediction_arguments["rect"])
         self.assertEqual(16, prediction_arguments["quantize"])
         self.assertNotIn("half", prediction_arguments)
         self.assertFalse(prediction_arguments["verbose"])

@@ -29,6 +29,8 @@ def metadata() -> BenchmarkRunMetadata:
         selected_images=1,
         requested_limit=1,
         run_scope="limited",
+        input_profile="model-native",
+        requested_image_size=None,
     )
 
 
@@ -41,6 +43,8 @@ def passed_sample(index: int = 0) -> BenchmarkSampleResult:
         generated_tokens=16,
         source_width=640,
         source_height=480,
+        processed_width=384,
+        processed_height=384,
     )
 
 
@@ -100,10 +104,11 @@ class BenchmarkResultTests(unittest.TestCase):
             completed = json.loads(destination.read_text(encoding="utf-8"))
 
         self.assertTrue(completed["run_completed"])
-        self.assertEqual(2, completed["schema_version"])
+        self.assertEqual(3, completed["schema_version"])
         self.assertEqual(1, completed["summary"]["processed_images"])
         self.assertEqual("limited", completed["metadata"]["run_scope"])
         self.assertEqual(640, completed["samples"][0]["source_width"])
+        self.assertEqual(384, completed["samples"][0]["processed_width"])
 
     def test_metadata_scope_must_match_requested_limit(self) -> None:
         values = metadata()
@@ -122,6 +127,8 @@ class BenchmarkResultTests(unittest.TestCase):
                 selected_images=values.selected_images,
                 requested_limit=values.requested_limit,
                 run_scope="full",
+                input_profile=values.input_profile,
+                requested_image_size=values.requested_image_size,
             )
 
     def test_completed_report_requires_matching_summary(self) -> None:

@@ -8,7 +8,7 @@ import unittest
 from datetime import datetime, timezone
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from src.benchmark.datasets import BenchmarkDataset, BenchmarkImage
 from src.benchmark.cli import (
@@ -23,9 +23,9 @@ REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 BENCHMARK_SCRIPT = REPOSITORY_ROOT / "scripts/run_benchmark.sh"
 
 
-def completed_summary() -> BenchmarkSummary:
+def completed_summary(processed_images: int = 2) -> BenchmarkSummary:
     return BenchmarkSummary(
-        processed_images=2,
+        processed_images=processed_images,
         failed_images=0,
         skipped_images=0,
         model_load_seconds=1.0,
@@ -154,6 +154,63 @@ class BenchmarkCliTests(unittest.TestCase):
         self.assertEqual(2, writer.metadata.selected_images)
         self.assertEqual(2, writer.metadata.requested_limit)
         self.assertEqual("limited", writer.metadata.run_scope)
+        self.assertEqual("model-native", writer.metadata.input_profile)
+        self.assertIsNone(writer.metadata.requested_image_size)
+
+    def test_yolo_uses_a_recorded_fixed_square_input_profile(self) -> None:
+        dataset = BenchmarkDataset(
+            selector="coco",
+            samples=(BenchmarkImage(0, "one", Path("one")),),
+            total_image_count=1,
+            requested_limit=None,
+        )
+        session = SimpleNamespace()
+        session_factory = Mock(return_value=session)
+        runner = Mock(return_value=completed_summary(processed_images=1))
+        with tempfile.TemporaryDirectory() as directory:
+            exit_code = main(
+                [
+                    "yolo11n",
+                    "coco",
+                    "--output",
+                    str(Path(directory) / "report.json"),
+                ],
+                dataset_loader=Mock(return_value=dataset),
+                session_factory=session_factory,
+                revision_resolver=Mock(return_value="revision"),
+                runtime_collector=Mock(return_value={}),
+                desktop_detector=Mock(return_value=False),
+                runner=runner,
+            )
+
+        self.assertEqual(0, exit_code)
+        session_factory.assert_called_once_with("yolo11n", "fp16", 640)
+        metadata = runner.call_args.args[2].metadata
+        self.assertEqual("fixed-square", metadata.input_profile)
+        self.assertEqual(640, metadata.requested_image_size)
+
+    def test_rejects_invalid_or_vlm_image_size_before_loading_dataset(self) -> None:
+        for arguments, message in (
+            (["yolo11n", "coco", "--image-size", "641"], "multiple of 32"),
+            (
+                [
+                    "smolvlm2-256m",
+                    "coco",
+                    "--precision",
+                    "fp16",
+                    "--image-size",
+                    "640",
+                ],
+                "only valid for YOLO",
+            ),
+        ):
+            with self.subTest(arguments=arguments):
+                dataset_loader = Mock()
+                with patch("builtins.print") as print_mock:
+                    exit_code = main(arguments, dataset_loader=dataset_loader)
+                self.assertEqual(1, exit_code)
+                dataset_loader.assert_not_called()
+                self.assertIn(message, print_mock.call_args.args[0])
 
     def test_unsafe_model_is_rejected_before_dependencies_are_called(self) -> None:
         dataset_loader = Mock()

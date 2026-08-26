@@ -43,6 +43,10 @@ class InferenceSession(ABC):
     def summarize(self, output: Any, prepared: Any) -> tuple[str, int | None]:
         """Return a compact output summary and optional generated-token count."""
 
+    def processed_image_size(self, prepared: Any) -> tuple[int, int] | None:
+        """Return the prepared input width and height when they are discoverable."""
+        return None
+
     def close(self) -> None:
         """Release references owned by the loaded session."""
         self.model = None
