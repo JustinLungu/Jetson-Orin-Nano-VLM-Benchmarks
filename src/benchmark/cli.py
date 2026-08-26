@@ -1,6 +1,8 @@
-"""Run one fixed benchmark configuration for the grouped workflow."""
+"""Run one fixed benchmark configuration."""
 
+import argparse
 import subprocess
+from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -15,6 +17,12 @@ from src.inference.yolo import YoloInferenceSession
 RESULTS_DIRECTORY = REPOSITORY_ROOT / "results" / "benchmarks"
 WARMUP_ITERATIONS = 3
 YOLO_IMAGE_SIZE = 640
+SMOLVLM_BENCHMARK_MODELS = (
+    "smolvlm2-256m",
+    "smolvlm2-500m",
+    "smolvlm2-2.2b",
+)
+BenchmarkCommand = Callable[[str, str, str | None, int | None], int]
 
 
 def run_model_benchmark(
@@ -89,8 +97,14 @@ def run_model_benchmark(
 
 def _configuration(model: str, precision: str | None) -> tuple[str, str]:
     if model in YOLO_MODELS:
+        if precision not in (None, "fp16"):
+            raise ValueError(f"Unsupported benchmark configuration: {model} {precision}")
         return "yolo", "fp16"
-    supported = VLM_RUNTIME_PRECISIONS.get(model)
+    supported = (
+        VLM_RUNTIME_PRECISIONS[model]
+        if model in SMOLVLM_BENCHMARK_MODELS
+        else None
+    )
     if supported is None or precision not in supported:
         raise ValueError(f"Unsupported benchmark configuration: {model} {precision}")
     return "small-vlm", precision
@@ -119,3 +133,36 @@ def _desktop_is_active() -> bool:
     except OSError:
         return False
     return result.returncode == 0
+
+
+def main(
+    argv: Sequence[str] | None = None,
+    *,
+    benchmark_command: BenchmarkCommand = run_model_benchmark,
+) -> int:
+    """Run exactly one supported model, precision, and dataset configuration."""
+    parser = argparse.ArgumentParser(
+        prog="./scripts/run_benchmark_model.sh",
+        description="Run one model configuration on one image dataset.",
+    )
+    parser.add_argument("model", choices=(*YOLO_MODELS, *SMOLVLM_BENCHMARK_MODELS))
+    parser.add_argument("dataset", choices=("coco", "imagenette"))
+    parser.add_argument("--precision", choices=("fp16", "fp32"))
+    parser.add_argument("--limit", type=int, help="development-only image limit")
+    arguments = parser.parse_args(argv)
+
+    if arguments.model not in YOLO_MODELS and arguments.precision is None:
+        parser.error("--precision is required for SmolVLM models")
+    if arguments.limit is not None and arguments.limit <= 0:
+        parser.error("--limit must be a positive integer")
+
+    return benchmark_command(
+        arguments.model,
+        arguments.dataset,
+        arguments.precision,
+        arguments.limit,
+    )
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

@@ -62,5 +62,16 @@ but is not enforced by the command.
 Omit `--limit` for the full dataset. The model and precision combinations are fixed by
 the group. Qwen2.5-VL-3B and Phi-3.5 Vision are excluded for safety.
 
+Run or retry one configuration through the same benchmark pipeline:
+
+```bash
+./scripts/run_benchmark_model.sh \
+  smolvlm2-2.2b imagenette --precision fp16
+./scripts/run_benchmark_model.sh yolo11n coco
+```
+
+The command also accepts `--limit N`. SmolVLM precision must be specified explicitly;
+YOLO precision is fixed to FP16.
+
 Limited reports are atomically checkpointed under `results/benchmarks/`; full-dataset
 reports go under `results/benchmarks/full_run/`. Every run uses three excluded warm-ups.

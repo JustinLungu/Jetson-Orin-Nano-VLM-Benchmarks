@@ -267,6 +267,18 @@ reports. Full-dataset output is stored separately under
 `results/benchmarks/full_run/`. A group stops when one configuration fails, while the
 completed reports already written by earlier configurations remain valid.
 
+To run or retry one configuration without repeating its group, use:
+
+```bash
+./scripts/run_benchmark_model.sh \
+  smolvlm2-2.2b imagenette --precision fp16
+./scripts/run_benchmark_model.sh yolo11n coco
+```
+
+The single-model command uses the same benchmark implementation and also accepts
+`--limit`. Precision is required for SmolVLM models and fixed to FP16 for YOLO. Qwen,
+Phi, and 2.2B FP32 remain unsupported.
+
 ## Reading benchmark reports
 
 Each JSON file identifies the model, dataset, precision, software versions,
