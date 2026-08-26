@@ -164,8 +164,11 @@ def _run_sample(
     sample: BenchmarkImage,
     clock: Callable[[], float],
 ) -> BenchmarkSampleResult:
+    source_width: int | None = None
+    source_height: int | None = None
     try:
         with sample.open_rgb() as image:
+            source_width, source_height = image.size
             prepared = session.prepare(image)
             output, inference_time = measure_cuda_operation(
                 lambda: session.infer(prepared),
@@ -179,6 +182,8 @@ def _run_sample(
             status="passed",
             inference_time_seconds=inference_time,
             generated_tokens=generated_tokens,
+            source_width=source_width,
+            source_height=source_height,
         )
     except DatasetImageError as error:
         return BenchmarkSampleResult(
@@ -200,6 +205,8 @@ def _run_sample(
             status="failed",
             error_type=error_type,
             error_message=str(error),
+            source_width=source_width,
+            source_height=source_height,
         )
 
 

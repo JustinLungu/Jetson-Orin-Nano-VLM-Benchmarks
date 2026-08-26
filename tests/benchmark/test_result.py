@@ -25,6 +25,10 @@ def metadata() -> BenchmarkRunMetadata:
         checkpoint_revision="test-revision",
         runtime_versions={"torch": "2.8.0", "cuda": "12.6"},
         desktop_active=False,
+        dataset_total_images=100,
+        selected_images=1,
+        requested_limit=1,
+        run_scope="limited",
     )
 
 
@@ -35,6 +39,8 @@ def passed_sample(index: int = 0) -> BenchmarkSampleResult:
         status="passed",
         inference_time_seconds=0.5,
         generated_tokens=16,
+        source_width=640,
+        source_height=480,
     )
 
 
@@ -94,8 +100,29 @@ class BenchmarkResultTests(unittest.TestCase):
             completed = json.loads(destination.read_text(encoding="utf-8"))
 
         self.assertTrue(completed["run_completed"])
-        self.assertEqual(1, completed["schema_version"])
+        self.assertEqual(2, completed["schema_version"])
         self.assertEqual(1, completed["summary"]["processed_images"])
+        self.assertEqual("limited", completed["metadata"]["run_scope"])
+        self.assertEqual(640, completed["samples"][0]["source_width"])
+
+    def test_metadata_scope_must_match_requested_limit(self) -> None:
+        values = metadata()
+        with self.assertRaisesRegex(ValueError, "does not match"):
+            BenchmarkRunMetadata(
+                model=values.model,
+                family=values.family,
+                runtime_precision=values.runtime_precision,
+                dataset=values.dataset,
+                batch_size=values.batch_size,
+                warmup_iterations=values.warmup_iterations,
+                checkpoint_revision=values.checkpoint_revision,
+                runtime_versions=values.runtime_versions,
+                desktop_active=values.desktop_active,
+                dataset_total_images=values.dataset_total_images,
+                selected_images=values.selected_images,
+                requested_limit=values.requested_limit,
+                run_scope="full",
+            )
 
     def test_completed_report_requires_matching_summary(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

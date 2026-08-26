@@ -8,10 +8,9 @@ from collections.abc import Callable, Sequence
 from datetime import datetime, timezone
 from importlib.metadata import PackageNotFoundError, version
 from pathlib import Path
-from typing import Any
 
 from src.benchmark.datasets import (
-    BenchmarkImage,
+    BenchmarkDataset,
     load_benchmark_dataset,
     validate_dataset_compatibility,
 )
@@ -37,7 +36,7 @@ from src.inference.yolo import YoloInferenceSession
 
 BENCHMARK_RESULTS_DIRECTORY = REPOSITORY_ROOT / "results" / "benchmarks"
 UNSAFE_BENCHMARK_MODELS = {"qwen2.5-vl-3b", "phi-3.5-vision"}
-DatasetLoader = Callable[..., tuple[BenchmarkImage, ...]]
+DatasetLoader = Callable[..., BenchmarkDataset]
 SessionFactory = Callable[[str, str], InferenceSession]
 BenchmarkRunner = Callable[..., BenchmarkSummary]
 
@@ -204,6 +203,10 @@ def main(
             checkpoint_revision=revision_resolver(arguments.model),
             runtime_versions=runtime_collector(session),
             desktop_active=desktop_active,
+            dataset_total_images=dataset.total_image_count,
+            selected_images=len(dataset),
+            requested_limit=dataset.requested_limit,
+            run_scope=dataset.run_scope,
         )
         report_created_at = created_at or datetime.now(timezone.utc)
         report_path = arguments.output or benchmark_report_path(

@@ -1,6 +1,7 @@
 """Dataset performance benchmarking components."""
 
 from src.benchmark.datasets import (
+    BenchmarkDataset,
     BenchmarkImage,
     DatasetImageError,
     load_benchmark_dataset,
@@ -22,6 +23,7 @@ from src.benchmark.telemetry import BenchmarkTelemetry, MemorySnapshot
 
 __all__ = (
     "BenchmarkImage",
+    "BenchmarkDataset",
     "BenchmarkExecutionError",
     "BenchmarkReportWriter",
     "BenchmarkRunMetadata",

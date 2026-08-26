@@ -38,6 +38,9 @@ class BenchmarkDatasetTests(unittest.TestCase):
         self.assertEqual(1, len(samples))
         self.assertEqual(0, samples[0].index)
         self.assertEqual("0001.jpg", samples[0].sample_id)
+        self.assertEqual(2, samples.total_image_count)
+        self.assertEqual(1, samples.requested_limit)
+        self.assertEqual("limited", samples.run_scope)
 
     def test_coco_rejects_invalid_layout(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -67,6 +70,9 @@ class BenchmarkDatasetTests(unittest.TestCase):
             )
 
         self.assertEqual([str(first), str(second)], [sample.sample_id for sample in samples])
+        self.assertEqual(2, samples.total_image_count)
+        self.assertIsNone(samples.requested_limit)
+        self.assertEqual("full", samples.run_scope)
 
     def test_corrupt_image_has_specific_error(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
@@ -87,10 +93,11 @@ class BenchmarkDatasetTests(unittest.TestCase):
             load_benchmark_dataset("coco", limit=0)
 
     def test_model_family_dataset_mapping_is_explicit(self) -> None:
-        validate_dataset_compatibility("yolo", "coco")
-        validate_dataset_compatibility("small-vlm", "imagenette")
+        for family in ("yolo", "small-vlm"):
+            for dataset in ("coco", "imagenette"):
+                validate_dataset_compatibility(family, dataset)
         with self.assertRaisesRegex(ValueError, "does not support"):
-            validate_dataset_compatibility("small-vlm", "coco")
+            validate_dataset_compatibility("small-vlm", "unknown")
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock
 
+from src.benchmark.datasets import BenchmarkDataset, BenchmarkImage
 from src.benchmark.cli import (
     benchmark_report_path,
     main,
@@ -51,6 +52,14 @@ class BenchmarkConfigurationTests(unittest.TestCase):
             ("yolo", "fp16"),
             validate_benchmark_configuration("yolo11n", "coco", None),
         )
+        self.assertEqual(
+            ("small-vlm", "fp16"),
+            validate_benchmark_configuration("smolvlm2-256m", "coco", "fp16"),
+        )
+        self.assertEqual(
+            ("yolo", "fp16"),
+            validate_benchmark_configuration("yolo11n", "imagenette", None),
+        )
 
     def test_rejects_unsafe_models_and_invalid_combinations(self) -> None:
         with self.assertRaisesRegex(ValueError, "excluded"):
@@ -59,8 +68,6 @@ class BenchmarkConfigurationTests(unittest.TestCase):
             validate_benchmark_configuration("smolvlm2-500m", "imagenette", None)
         with self.assertRaisesRegex(ValueError, "does not support fp32"):
             validate_benchmark_configuration("smolvlm2-2.2b", "imagenette", "fp32")
-        with self.assertRaisesRegex(ValueError, "does not support dataset"):
-            validate_benchmark_configuration("yolo11n", "imagenette", None)
         with self.assertRaisesRegex(ValueError, "Do not pass --precision"):
             validate_benchmark_configuration("yolo11n", "coco", "fp16")
 
@@ -98,7 +105,15 @@ class CheckpointRevisionTests(unittest.TestCase):
 
 class BenchmarkCliTests(unittest.TestCase):
     def test_runs_validated_configuration_with_expected_metadata(self) -> None:
-        dataset = (SimpleNamespace(sample_id="one"), SimpleNamespace(sample_id="two"))
+        dataset = BenchmarkDataset(
+            selector="imagenette",
+            samples=(
+                BenchmarkImage(0, "one", Path("one")),
+                BenchmarkImage(1, "two", Path("two")),
+            ),
+            total_image_count=100,
+            requested_limit=2,
+        )
         session = SimpleNamespace()
         runner = Mock(return_value=completed_summary())
         created_at = datetime(2026, 8, 26, 12, 30, tzinfo=timezone.utc)
@@ -135,6 +150,10 @@ class BenchmarkCliTests(unittest.TestCase):
         self.assertEqual(output, writer.destination)
         self.assertEqual("fp16", writer.metadata.runtime_precision)
         self.assertEqual("revision", writer.metadata.checkpoint_revision)
+        self.assertEqual(100, writer.metadata.dataset_total_images)
+        self.assertEqual(2, writer.metadata.selected_images)
+        self.assertEqual(2, writer.metadata.requested_limit)
+        self.assertEqual("limited", writer.metadata.run_scope)
 
     def test_unsafe_model_is_rejected_before_dependencies_are_called(self) -> None:
         dataset_loader = Mock()

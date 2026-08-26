@@ -8,7 +8,8 @@ from pathlib import Path
 from typing import Any, Literal, Sequence
 
 BenchmarkSampleStatus = Literal["passed", "failed", "skipped"]
-BENCHMARK_SCHEMA_VERSION = 1
+BenchmarkRunScope = Literal["limited", "full"]
+BENCHMARK_SCHEMA_VERSION = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -24,12 +25,27 @@ class BenchmarkRunMetadata:
     checkpoint_revision: str
     runtime_versions: dict[str, str]
     desktop_active: bool
+    dataset_total_images: int
+    selected_images: int
+    requested_limit: int | None
+    run_scope: BenchmarkRunScope
 
     def __post_init__(self) -> None:
         if self.batch_size <= 0:
             raise ValueError("batch_size must be positive")
         if self.warmup_iterations < 0:
             raise ValueError("warmup_iterations cannot be negative")
+        if self.dataset_total_images <= 0:
+            raise ValueError("dataset_total_images must be positive")
+        if not 0 < self.selected_images <= self.dataset_total_images:
+            raise ValueError(
+                "selected_images must be positive and no greater than dataset_total_images"
+            )
+        if self.requested_limit is not None and self.requested_limit <= 0:
+            raise ValueError("requested_limit must be positive")
+        expected_scope = "limited" if self.requested_limit is not None else "full"
+        if self.run_scope != expected_scope:
+            raise ValueError("run_scope does not match requested_limit")
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +59,8 @@ class BenchmarkSampleResult:
     generated_tokens: int | None = None
     error_type: str | None = None
     error_message: str | None = None
+    source_width: int | None = None
+    source_height: int | None = None
 
     def __post_init__(self) -> None:
         if self.status not in {"passed", "failed", "skipped"}:
@@ -60,6 +78,14 @@ class BenchmarkSampleResult:
             raise ValueError("inference_time_seconds cannot be negative")
         if self.generated_tokens is not None and self.generated_tokens < 0:
             raise ValueError("generated_tokens cannot be negative")
+        if (self.source_width is None) != (self.source_height is None):
+            raise ValueError("source_width and source_height must be recorded together")
+        if (
+            self.source_width is not None
+            and self.source_height is not None
+            and (self.source_width <= 0 or self.source_height <= 0)
+        ):
+            raise ValueError("source image dimensions must be positive")
 
 
 @dataclass(frozen=True, slots=True)

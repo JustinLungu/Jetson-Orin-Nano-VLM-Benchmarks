@@ -121,6 +121,10 @@ def metadata(warmups: int = 1) -> BenchmarkRunMetadata:
         checkpoint_revision="revision",
         runtime_versions={},
         desktop_active=False,
+        dataset_total_images=3,
+        selected_images=3,
+        requested_limit=None,
+        run_scope="full",
     )
 
 
@@ -181,6 +185,8 @@ class BenchmarkRunnerTests(unittest.TestCase):
         self.assertAlmostEqual(5.0, summary.images_per_second)
         self.assertAlmostEqual(10.0, summary.generated_tokens_per_second)
         self.assertEqual(3, len(report["samples"]))
+        self.assertEqual(1, report["samples"][0]["source_width"])
+        self.assertEqual(1, report["samples"][0]["source_height"])
         self.assertTrue(report["run_completed"])
         self.assertEqual(2400, report["jetson_metrics"]["peak_ram_used_mib"])
 
