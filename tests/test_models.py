@@ -243,6 +243,28 @@ class ModelLoadingTests(unittest.TestCase):
                 transformers_module=SimpleNamespace(),
             )
 
+    def test_loader_requires_prepared_fp16_for_2_2b(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            model_directory = root / "smolvlm2-2.2b"
+            model_directory.mkdir()
+            (model_directory / "config.json").touch()
+
+            with patch.object(load_models, "SMALL_VLM_MODEL_DIRECTORY", root):
+                with self.assertRaisesRegex(
+                    FileNotFoundError,
+                    "prepare_fp16_model.sh smolvlm2-2.2b",
+                ):
+                    load_models.load_vlm(
+                        "smolvlm2-2.2b",
+                        precision="fp16",
+                        torch_module=SimpleNamespace(
+                            float16="float16",
+                            float32="float32",
+                        ),
+                        transformers_module=SimpleNamespace(),
+                    )
+
 
 if __name__ == "__main__":
     unittest.main()

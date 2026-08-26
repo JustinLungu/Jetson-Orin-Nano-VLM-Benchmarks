@@ -33,12 +33,15 @@ Download individual models, a model family, or all configured models:
 ./scripts/download_models.sh all
 ```
 
-Prepare the downloaded SmolVLM2-2.2B FP32 checkpoint as persistent FP16 without deleting
-the source files:
+After installing Jetson PyTorch, prepare the downloaded SmolVLM2-2.2B FP32 checkpoint as
+persistent FP16 without deleting the source files:
 
 ```bash
 ./scripts/prepare_fp16_model.sh smolvlm2-2.2b
 ```
+
+Only the 2.2B model needs this preparation. The 256M and 500M models are cast to their
+configured runtime precision when loaded.
 
 ## Performance benchmarks
 

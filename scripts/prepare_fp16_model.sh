@@ -11,4 +11,4 @@ if [[ "$#" -ne 1 ]]; then
 fi
 
 cd "${REPOSITORY_ROOT}"
-uv run --frozen --no-sync python -m src.model_preparation.fp16 "$1"
+uv run --frozen --no-sync python -m src.prepare_fp16_model "$1"

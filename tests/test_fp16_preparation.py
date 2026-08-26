@@ -8,7 +8,7 @@ from pathlib import Path
 import torch
 from safetensors.torch import load_file, save_file
 
-from src.model_preparation.fp16 import convert_checkpoint_to_fp16, prepared_fp16_path
+from src.prepare_fp16_model import convert_checkpoint_to_fp16, prepared_fp16_path
 
 
 class Fp16PreparationTests(unittest.TestCase):

@@ -1,4 +1,4 @@
-"""Prepare persistent FP16 safetensors checkpoints for Jetson inference."""
+"""Prepare the persistent SmolVLM2-2.2B FP16 checkpoint."""
 
 import argparse
 import json

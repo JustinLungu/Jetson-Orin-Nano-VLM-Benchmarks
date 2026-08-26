@@ -176,16 +176,6 @@ Model snapshots remain under the ignored `models/` directory. Hugging Face snaps
 pinned to their resolved commit in `download_metadata.json`. Alternative ONNX, GGUF, and
 duplicate framework checkpoints are excluded from the download.
 
-Prepare the persistent 2.2B FP16 checkpoint once:
-
-```bash
-./scripts/prepare_fp16_model.sh smolvlm2-2.2b
-```
-
-The conversion should record `target_dtype: float16`, `tensor_count: 657`, and
-`total_tensor_bytes: 4493569760` in `fp16/conversion_metadata.json`. It leaves the FP32
-source untouched, and the loader automatically selects the validated FP16 copy.
-
 ### 4. Install the Jetson inference dependencies
 
 Verify the platform before installing the CUDA packages:
@@ -224,7 +214,26 @@ Do not sync the `yolo` group on the Jetson because its generic resolved Torch pa
 can replace the JetPack-compatible builds. The shell entry points use
 `uv run --frozen --no-sync` for the same reason.
 
-### 5. Validate the benchmark pipeline
+### 5. Prepare SmolVLM2-2.2B for FP16
+
+This one-time preparation is required only for SmolVLM2-2.2B and must run after the
+Jetson PyTorch installation:
+
+```bash
+./scripts/prepare_fp16_model.sh smolvlm2-2.2b
+```
+
+The conversion should record `target_dtype: float16`, `tensor_count: 657`, and
+`total_tensor_bytes: 4493569760` in `fp16/conversion_metadata.json`. It leaves the FP32
+source untouched, and the loader automatically selects the validated FP16 copy. The 256M
+and 500M models do not need prepared copies; Transformers casts them to FP16 or FP32 while
+loading, according to the fixed benchmark configuration.
+
+Keeping this conversion outside model loading prevents one-time checkpoint preparation
+from being included in benchmark model-load measurements. If the prepared 2.2B checkpoint
+is missing, the loader stops before inference and prints the preparation command.
+
+### 6. Validate the benchmark pipeline
 
 Run all four groups on small deterministic subsets:
 
@@ -242,7 +251,7 @@ longer full-dataset runs consume time. Limited reports remain directly under
 exercises the same loading, warm-up, inference, metrics, reporting, and cleanup path as
 the full benchmark.
 
-### 6. Run the complete datasets
+### 7. Run the complete datasets
 
 Omit `--limit` to execute the full experiment:
 

@@ -134,10 +134,16 @@ def load_vlm(
     if not (model_path / "config.json").is_file():
         raise FileNotFoundError(f"Model is not downloaded: {model_path}")
 
-    from src.model_preparation.fp16 import prepared_fp16_path
+    from src.prepare_fp16_model import prepared_fp16_path
 
     if precision == "fp16":
-        model_path = prepared_fp16_path(model_path) or model_path
+        prepared_path = prepared_fp16_path(model_path)
+        if selector == "smolvlm2-2.2b" and prepared_path is None:
+            raise FileNotFoundError(
+                "SmolVLM2-2.2B requires its persistent FP16 checkpoint. Run: "
+                "./scripts/prepare_fp16_model.sh smolvlm2-2.2b"
+            )
+        model_path = prepared_path or model_path
 
     loader_name, trust_remote_code = VLM_LOADER_CLASSES[selector]
     loader = getattr(transformers_module, loader_name)
@@ -200,6 +206,11 @@ def main() -> None:
 
     download_models(selected)
     print(f"\nDownloaded {len(selected)} model(s) under {REPOSITORY_ROOT / 'models'}")
+    if "smolvlm2-2.2b" in selected:
+        print(
+            "After installing Jetson PyTorch, prepare SmolVLM2-2.2B once with:\n"
+            "  ./scripts/prepare_fp16_model.sh smolvlm2-2.2b"
+        )
 
 
 if __name__ == "__main__":
