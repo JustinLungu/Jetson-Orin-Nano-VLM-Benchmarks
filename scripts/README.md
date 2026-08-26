@@ -82,13 +82,14 @@ Run the four complete experiment groups through the same single-model benchmark 
 ./scripts/run_benchmark_group.sh smolvlm imagenette
 ```
 
-Add `--limit` for validation runs. SmolVLM groups require a headless session because they
-include SmolVLM2-2.2B FP16 and are refused while the desktop is active.
+Add `--limit` for validation runs. SmolVLM groups include SmolVLM2-2.2B FP16; running
+headless is recommended for its tighter memory margin but is not enforced by the command.
 
 Omit `--limit` for the full dataset. VLMs require `--precision fp16` or
 `--precision fp32`; YOLO uses FP16 and rejects the precision option. SmolVLM2-2.2B
-supports FP16 only and should run alone in a headless session. Qwen2.5-VL-3B and
+supports FP16 only. Qwen2.5-VL-3B and
 Phi-3.5 Vision are blocked for safety.
 
-Reports are atomically checkpointed under `results/benchmarks/`. Use `--warmup` to change
-the default three excluded warm-ups and `--output` to select an exact JSON path.
+Limited reports are atomically checkpointed under `results/benchmarks/`; full-dataset
+reports go under `results/benchmarks/full_run/`. Use `--warmup` to change the default
+three excluded warm-ups and `--output` to select an exact JSON path.

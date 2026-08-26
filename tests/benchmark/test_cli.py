@@ -248,6 +248,21 @@ class BenchmarkCliTests(unittest.TestCase):
             path,
         )
 
+    def test_full_run_report_path_uses_a_dedicated_directory(self) -> None:
+        path = benchmark_report_path(
+            "smolvlm2-256m",
+            "imagenette",
+            "fp16",
+            datetime(2026, 8, 26, 12, 30, tzinfo=timezone.utc),
+            Path("results"),
+            run_scope="full",
+        )
+
+        self.assertEqual(
+            Path("results/full_run/smolvlm2-256m-imagenette-fp16-20260826T123000Z.json"),
+            path,
+        )
+
     def test_shell_entry_point_has_valid_syntax(self) -> None:
         subprocess.run(["bash", "-n", str(BENCHMARK_SCRIPT)], check=True)
 

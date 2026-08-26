@@ -3,7 +3,7 @@
 import argparse
 from collections.abc import Callable, Sequence
 
-from src.benchmark.cli import desktop_is_active, main as run_single_benchmark
+from src.benchmark.cli import main as run_single_benchmark
 
 YOLO_BENCHMARK_CONFIGURATIONS = (
     ("yolov8n", None),
@@ -35,7 +35,6 @@ def main(
     argv: Sequence[str] | None = None,
     *,
     benchmark_command: BenchmarkCommand = run_single_benchmark,
-    desktop_detector: Callable[[], bool] = desktop_is_active,
 ) -> int:
     parser = argparse.ArgumentParser(
         prog="./scripts/run_benchmark_group.sh",
@@ -46,12 +45,6 @@ def main(
     parser.add_argument("--warmup", type=int, help="excluded warm-up runs per model")
     parser.add_argument("--limit", type=int, help="development-only image limit")
     parser.add_argument("--image-size", type=int, help="YOLO square input size")
-    parser.add_argument(
-        "--allow-desktop-2.2b",
-        dest="allow_desktop_2_2b",
-        action="store_true",
-        help="allow the memory-sensitive 2.2B run while the desktop is active",
-    )
     arguments = parser.parse_args(argv)
 
     if arguments.warmup is not None and arguments.warmup < 0:
@@ -60,21 +53,8 @@ def main(
         parser.error("--limit must be a positive integer")
     if arguments.family == "smolvlm" and arguments.image_size is not None:
         parser.error("--image-size is only valid for the YOLO group")
-    if arguments.family == "yolo" and arguments.allow_desktop_2_2b:
-        parser.error("--allow-desktop-2.2b is only valid for the SmolVLM group")
 
     configurations = benchmark_group_configurations(arguments.family)
-    if (
-        arguments.family == "smolvlm"
-        and desktop_detector()
-        and not arguments.allow_desktop_2_2b
-    ):
-        print(
-            "Benchmark group refused: SmolVLM2-2.2B requires a headless session. "
-            "Stop the desktop or pass --allow-desktop-2.2b explicitly."
-        )
-        return 1
-
     total = len(configurations)
     for index, (model, precision) in enumerate(configurations, start=1):
         print(f"\n[{index}/{total}] {model} {precision or 'fp16'} on {arguments.dataset}")

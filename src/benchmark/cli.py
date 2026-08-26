@@ -155,10 +155,15 @@ def benchmark_report_path(
     precision: str,
     created_at: datetime,
     output_directory: Path = BENCHMARK_RESULTS_DIRECTORY,
+    *,
+    run_scope: str = "limited",
 ) -> Path:
     """Build the default timestamped benchmark report path."""
+    if run_scope not in {"limited", "full"}:
+        raise ValueError(f"Unknown benchmark run scope: {run_scope}")
     timestamp = created_at.strftime("%Y%m%dT%H%M%SZ")
-    return output_directory / f"{model}-{dataset}-{precision}-{timestamp}.json"
+    directory = output_directory / "full_run" if run_scope == "full" else output_directory
+    return directory / f"{model}-{dataset}-{precision}-{timestamp}.json"
 
 
 def format_progress(result: BenchmarkSampleResult, completed: int, total: int) -> str:
@@ -253,6 +258,7 @@ def main(
             arguments.dataset,
             precision,
             report_created_at,
+            run_scope=dataset.run_scope,
         )
         writer = BenchmarkReportWriter(
             report_path,

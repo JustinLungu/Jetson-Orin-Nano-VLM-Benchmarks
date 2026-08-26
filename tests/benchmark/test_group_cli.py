@@ -31,28 +31,15 @@ class BenchmarkGroupCliTests(unittest.TestCase):
             command.call_args_list,
         )
 
-    def test_smolvlm_group_expands_precisions_and_requires_headless(self) -> None:
+    def test_smolvlm_group_includes_every_safe_precision(self) -> None:
         command = Mock(return_value=0)
 
-        refused = main(
+        exit_code = main(
             ["smolvlm", "coco", "--limit", "10"],
             benchmark_command=command,
-            desktop_detector=Mock(return_value=True),
-        )
-        allowed = main(
-            [
-                "smolvlm",
-                "coco",
-                "--limit",
-                "10",
-                "--allow-desktop-2.2b",
-            ],
-            benchmark_command=command,
-            desktop_detector=Mock(return_value=True),
         )
 
-        self.assertEqual(1, refused)
-        self.assertEqual(0, allowed)
+        self.assertEqual(0, exit_code)
         self.assertEqual(
             [
                 call(

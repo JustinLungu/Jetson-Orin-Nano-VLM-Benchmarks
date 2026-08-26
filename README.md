@@ -390,15 +390,17 @@ When all four validations succeed, omit `--limit` for the complete datasets:
 ./scripts/run_benchmark_group.sh smolvlm imagenette
 ```
 
-Run both SmolVLM groups headless because each ends with the memory-sensitive 2.2B FP16
-configuration. The group command refuses an active desktop by default. Every
-model/precision/dataset configuration still writes an independent report: six YOLO and
-ten SmolVLM reports across the four groups.
+Each SmolVLM group includes 256M FP16/FP32, 500M FP16/FP32, and 2.2B FP16. A headless
+session remains recommended for the memory-sensitive 2.2B run, but the group command does
+not impose a desktop restriction. Every model/precision/dataset configuration writes an
+independent report: six YOLO and ten SmolVLM reports across the four groups.
 
 The default is three excluded warm-up iterations. Override it with `--warmup`, or choose
 an exact report path with `--output`. Each invocation writes one timestamped JSON file
-under `results/benchmarks/` and atomically checkpoints after every image. An interrupted
-run remains valid with `run_status: interrupted` and one concise error message.
+under `results/benchmarks/` and atomically checkpoints after every image. Limited runs
+stay directly in that directory; complete-dataset reports go under
+`results/benchmarks/full_run/`. An interrupted run remains valid with
+`run_status: interrupted` and one concise error message.
 
 The report retains one synchronized inference latency per image and summarizes mean,
 median, and nearest-rank p95 latency. `images_per_second` is successful images divided by
