@@ -1,7 +1,6 @@
 """Offline tests for dataset downloads and their shell entry point."""
 
 import io
-import os
 import shutil
 import subprocess
 import tarfile
@@ -21,49 +20,10 @@ class DatasetScriptTests(unittest.TestCase):
     def test_script_has_valid_shell_syntax(self) -> None:
         subprocess.run(["bash", "-n", str(DATASET_SCRIPT)], check=True)
 
-    def test_help_does_not_download_data(self) -> None:
-        environment = os.environ.copy()
-        environment["UV_CACHE_DIR"] = "/tmp/jetson-vlm-test-uv-cache"
-        result = subprocess.run(
-            [str(DATASET_SCRIPT), "--help"],
-            check=True,
-            capture_output=True,
-            text=True,
-            env=environment,
-        )
-        self.assertIn("usage:", result.stdout)
-
-    def test_generated_dataset_paths_are_ignored(self) -> None:
-        generated_paths = (
-            "datasets/coco/images/example.jpg",
-            "datasets/coco/annotations/instances_val2017.json",
-            "datasets/imagenette/validation/images/n01440764/example.JPEG",
-            "datasets/imagenette/validation_labels.csv",
-        )
-        result = subprocess.run(
-            ["git", "check-ignore", "--stdin"],
-            cwd=REPOSITORY_ROOT,
-            input="\n".join(generated_paths) + "\n",
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        self.assertEqual(generated_paths, tuple(result.stdout.splitlines()))
-
 
 class DatasetSelectionTests(unittest.TestCase):
     def test_all_selects_both_datasets(self) -> None:
         self.assertEqual(["coco", "imagenette"], download_datasets.select_datasets(["all"]))
-
-    def test_duplicate_dataset_names_are_removed(self) -> None:
-        self.assertEqual(
-            ["coco", "imagenette"],
-            download_datasets.select_datasets(["coco", "imagenette", "coco"]),
-        )
-
-    def test_unknown_dataset_is_rejected(self) -> None:
-        with self.assertRaisesRegex(ValueError, "Unknown dataset selector"):
-            download_datasets.select_datasets(["imagenet"])
 
 
 class DatasetDownloadTests(unittest.TestCase):

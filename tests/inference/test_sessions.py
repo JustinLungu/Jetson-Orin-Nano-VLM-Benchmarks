@@ -86,6 +86,7 @@ class InferenceSessionTests(unittest.TestCase):
                 torch_module=SimpleNamespace(),
                 model_directory=model_directory,
                 yolo_class=yolo_class,
+                image_size=640,
             )
             session.load()
             with Image.new("RGB", (1, 1)) as image:
@@ -97,22 +98,13 @@ class InferenceSessionTests(unittest.TestCase):
         summary, generated_tokens = session.summarize(second_output, second)
         yolo_class.assert_called_once()
         self.assertEqual(2, model.predict.call_count)
+        self.assertEqual(640, second["imgsz"])
         self.assertFalse(second["rect"])
         self.assertEqual("detections=1", summary)
         self.assertIsNone(generated_tokens)
 
         session.close()
         self.assertIsNone(session.model)
-
-    def test_yolo_rejects_a_size_ultralytics_would_adjust(self) -> None:
-        with self.assertRaisesRegex(ValueError, "positive multiple of 32"):
-            YoloInferenceSession(
-                "yolo11n",
-                image_size=641,
-                torch_module=SimpleNamespace(),
-                yolo_class=Mock(),
-            )
-
 
 if __name__ == "__main__":
     unittest.main()

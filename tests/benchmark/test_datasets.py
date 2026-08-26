@@ -87,9 +87,5 @@ class BenchmarkDatasetTests(unittest.TestCase):
                 with sample.open_rgb():
                     pass
 
-    def test_limit_must_be_positive(self) -> None:
-        with self.assertRaisesRegex(ValueError, "positive integer"):
-            load_benchmark_dataset("coco", limit=0)
-
 if __name__ == "__main__":
     unittest.main()

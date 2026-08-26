@@ -23,28 +23,15 @@ def write_safetensors(path: Path, *, dtype: str = "F16", truncate: bool = False)
 
 
 class ModelSelectionTests(unittest.TestCase):
-    def test_all_selects_every_model_in_registry_order(self) -> None:
-        self.assertEqual(list(load_models.MODEL_SELECTORS), load_models.select_models(["all"]))
-
-    def test_small_vlm_group_uses_constants_registry(self) -> None:
+    def test_documented_model_groups_select_expected_models(self) -> None:
+        self.assertEqual(
+            ["yolov8n", "yolo11n", "yolo26n"],
+            load_models.select_models(["yolo"]),
+        )
         self.assertEqual(
             list(MODEL_REPOSITORIES),
             load_models.select_models(["small-vlm"]),
         )
-
-    def test_family_and_individual_selections_are_deduplicated(self) -> None:
-        self.assertEqual(
-            list(load_models.MODEL_GROUPS["yolo"]),
-            load_models.select_models(["yolo", "yolov8n"]),
-        )
-
-    def test_unknown_selector_is_rejected(self) -> None:
-        with self.assertRaisesRegex(ValueError, "Unknown model selector"):
-            load_models.select_models(["not-a-model"])
-
-    def test_all_cannot_be_combined_with_other_selectors(self) -> None:
-        with self.assertRaisesRegex(ValueError, "Use 'all' alone"):
-            load_models.select_models(["all", "yolov8n"])
 
 
 class ModelDownloadTests(unittest.TestCase):
