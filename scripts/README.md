@@ -73,6 +73,18 @@ Run a short development benchmark before processing a complete dataset:
 ./scripts/run_benchmark.sh smolvlm2-256m imagenette --precision fp16 --limit 10
 ```
 
+Run the four complete experiment groups through the same single-model benchmark path:
+
+```bash
+./scripts/run_benchmark_group.sh yolo coco
+./scripts/run_benchmark_group.sh yolo imagenette
+./scripts/run_benchmark_group.sh smolvlm coco
+./scripts/run_benchmark_group.sh smolvlm imagenette
+```
+
+Add `--limit` for validation runs. SmolVLM groups require a headless session because they
+include SmolVLM2-2.2B FP16 and are refused while the desktop is active.
+
 Omit `--limit` for the full dataset. VLMs require `--precision fp16` or
 `--precision fp32`; YOLO uses FP16 and rejects the precision option. SmolVLM2-2.2B
 supports FP16 only and should run alone in a headless session. Qwen2.5-VL-3B and

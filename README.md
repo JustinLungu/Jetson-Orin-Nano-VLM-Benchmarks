@@ -364,40 +364,36 @@ quality are intentionally excluded.
 
 | Model | Dataset | Supported precision |
 | --- | --- | --- |
-| YOLOv8n, YOLO11n, YOLO26n | COCO 2017 validation (5,000 images) | FP16 |
-| SmolVLM2-256M | Imagenette validation (3,925 images) | FP16, FP32 |
-| SmolVLM2-500M | Imagenette validation (3,925 images) | FP16, FP32 |
-| SmolVLM2-2.2B | Imagenette validation (3,925 images) | FP16 only |
+| YOLOv8n, YOLO11n, YOLO26n | COCO or Imagenette validation | FP16 |
+| SmolVLM2-256M | COCO or Imagenette validation | FP16, FP32 |
+| SmolVLM2-500M | COCO or Imagenette validation | FP16, FP32 |
+| SmolVLM2-2.2B | COCO or Imagenette validation | FP16 only |
 
 Qwen2.5-VL-3B and Phi-3.5 Vision are rejected before loading. YOLO precision is fixed, so
 do not pass `--precision` for YOLO. VLM precision must always be explicit.
 
-Start with a limited development run:
+Validate the four benchmark groups on a small selection first:
 
 ```bash
-./scripts/run_benchmark.sh yolo11n coco --limit 10
-
-./scripts/run_benchmark.sh smolvlm2-256m imagenette \
-  --precision fp16 --limit 10
+./scripts/run_benchmark_group.sh yolo coco --limit 20
+./scripts/run_benchmark_group.sh yolo imagenette --limit 20
+./scripts/run_benchmark_group.sh smolvlm coco --limit 10
+./scripts/run_benchmark_group.sh smolvlm imagenette --limit 10
 ```
 
-When that succeeds, omit `--limit` to process the complete dataset:
+When all four validations succeed, omit `--limit` for the complete datasets:
 
 ```bash
-./scripts/run_benchmark.sh yolo11n coco
-
-./scripts/run_benchmark.sh smolvlm2-256m imagenette --precision fp16
-./scripts/run_benchmark.sh smolvlm2-256m imagenette --precision fp32
-./scripts/run_benchmark.sh smolvlm2-500m imagenette --precision fp16
-./scripts/run_benchmark.sh smolvlm2-500m imagenette --precision fp32
+./scripts/run_benchmark_group.sh yolo coco
+./scripts/run_benchmark_group.sh yolo imagenette
+./scripts/run_benchmark_group.sh smolvlm coco
+./scripts/run_benchmark_group.sh smolvlm imagenette
 ```
 
-Run SmolVLM2-2.2B alone and preferably headless because its smoke test reached about
-7.2/7.6 GB total RAM:
-
-```bash
-./scripts/run_benchmark.sh smolvlm2-2.2b imagenette --precision fp16
-```
+Run both SmolVLM groups headless because each ends with the memory-sensitive 2.2B FP16
+configuration. The group command refuses an active desktop by default. Every
+model/precision/dataset configuration still writes an independent report: six YOLO and
+ten SmolVLM reports across the four groups.
 
 The default is three excluded warm-up iterations. Override it with `--warmup`, or choose
 an exact report path with `--output`. Each invocation writes one timestamped JSON file
