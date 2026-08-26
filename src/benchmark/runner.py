@@ -71,28 +71,37 @@ def run_benchmark(
             model_load_seconds=model_load_seconds,
             total_run_seconds=total_run_seconds,
         )
-        metrics = telemetry.stop()
         telemetry_started = False
+        metrics = telemetry.stop()
         writer.write(
             results,
-            run_completed=True,
             summary=summary,
             jetson_metrics=metrics,
+            run_status="completed",
         )
         return summary
-    except BaseException:
+    except BaseException as error:
+        metrics = None
         if telemetry_started:
-            metrics = telemetry.stop()
             telemetry_started = False
-            writer.write(results, jetson_metrics=metrics)
+            try:
+                metrics = telemetry.stop()
+            except Exception:
+                metrics = None
+        run_status = "interrupted" if isinstance(error, KeyboardInterrupt) else "failed"
+        error_message = str(error) or "Interrupted by user"
+        writer.write(
+            results,
+            jetson_metrics=metrics,
+            run_status=run_status,
+            error_message=error_message,
+        )
         raise
     finally:
         if telemetry_started:
             telemetry.stop()
         session.close()
         cleanup_cuda(session.torch)
-
-
 def aggregate_benchmark_results(
     results: Sequence[BenchmarkSampleResult],
     *,
@@ -164,17 +173,9 @@ def _run_sample(
     sample: BenchmarkImage,
     clock: Callable[[], float],
 ) -> BenchmarkSampleResult:
-    source_width: int | None = None
-    source_height: int | None = None
-    processed_width: int | None = None
-    processed_height: int | None = None
     try:
         with sample.open_rgb() as image:
-            source_width, source_height = image.size
             prepared = session.prepare(image)
-            processed_size = session.processed_image_size(prepared)
-            if processed_size is not None:
-                processed_width, processed_height = processed_size
             output, inference_time = measure_cuda_operation(
                 lambda: session.infer(prepared),
                 session.torch,
@@ -187,10 +188,6 @@ def _run_sample(
             status="passed",
             inference_time_seconds=inference_time,
             generated_tokens=generated_tokens,
-            source_width=source_width,
-            source_height=source_height,
-            processed_width=processed_width,
-            processed_height=processed_height,
         )
     except DatasetImageError as error:
         return BenchmarkSampleResult(
@@ -212,10 +209,6 @@ def _run_sample(
             status="failed",
             error_type=error_type,
             error_message=str(error),
-            source_width=source_width,
-            source_height=source_height,
-            processed_width=processed_width,
-            processed_height=processed_height,
         )
 
 

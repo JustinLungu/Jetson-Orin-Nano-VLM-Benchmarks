@@ -402,7 +402,7 @@ Run SmolVLM2-2.2B alone and preferably headless because its smoke test reached a
 The default is three excluded warm-up iterations. Override it with `--warmup`, or choose
 an exact report path with `--output`. Each invocation writes one timestamped JSON file
 under `results/benchmarks/` and atomically checkpoints after every image. An interrupted
-run remains valid with `run_completed: false`.
+run remains valid with `run_status: interrupted` and one concise error message.
 
 The report retains one synchronized inference latency per image and summarizes mean,
 median, and nearest-rank p95 latency. `images_per_second` is successful images divided by

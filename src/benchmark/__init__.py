@@ -14,6 +14,7 @@ from src.benchmark.result import (
     BenchmarkSummary,
     JetsonBenchmarkMetrics,
 )
+from src.benchmark.provenance import BenchmarkProvenance, collect_benchmark_provenance
 from src.benchmark.runner import (
     BenchmarkExecutionError,
     aggregate_benchmark_results,
@@ -24,6 +25,7 @@ from src.benchmark.telemetry import BenchmarkTelemetry, MemorySnapshot
 __all__ = (
     "BenchmarkImage",
     "BenchmarkDataset",
+    "BenchmarkProvenance",
     "BenchmarkExecutionError",
     "BenchmarkReportWriter",
     "BenchmarkRunMetadata",
@@ -35,6 +37,7 @@ __all__ = (
     "DatasetImageError",
     "load_benchmark_dataset",
     "aggregate_benchmark_results",
+    "collect_benchmark_provenance",
     "run_benchmark",
     "validate_dataset_compatibility",
 )

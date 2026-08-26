@@ -16,6 +16,7 @@ from src.benchmark.result import (
     BenchmarkSampleResult,
     JetsonBenchmarkMetrics,
 )
+from src.benchmark.provenance import BenchmarkProvenance
 from src.benchmark.runner import (
     BenchmarkExecutionError,
     aggregate_benchmark_results,
@@ -73,9 +74,6 @@ class FakeSession(InferenceSession):
         self.inference_calls += 1
         return object()
 
-    def processed_image_size(self, prepared: object) -> tuple[int, int]:
-        return 384, 384
-
     def summarize(self, output: object, prepared: object) -> tuple[str, int]:
         return "complete", 2
 
@@ -130,6 +128,7 @@ def metadata(warmups: int = 1) -> BenchmarkRunMetadata:
         run_scope="full",
         input_profile="model-native",
         requested_image_size=None,
+        provenance=BenchmarkProvenance("abc123", "25W", True),
     )
 
 
@@ -190,11 +189,7 @@ class BenchmarkRunnerTests(unittest.TestCase):
         self.assertAlmostEqual(5.0, summary.images_per_second)
         self.assertAlmostEqual(10.0, summary.generated_tokens_per_second)
         self.assertEqual(3, len(report["samples"]))
-        self.assertEqual(1, report["samples"][0]["source_width"])
-        self.assertEqual(1, report["samples"][0]["source_height"])
-        self.assertEqual(384, report["samples"][0]["processed_width"])
-        self.assertEqual(384, report["samples"][0]["processed_height"])
-        self.assertTrue(report["run_completed"])
+        self.assertEqual("completed", report["run_status"])
         self.assertEqual(2400, report["jetson_metrics"]["peak_ram_used_mib"])
 
     def test_load_failure_preserves_empty_incomplete_report(self) -> None:
@@ -215,8 +210,9 @@ class BenchmarkRunnerTests(unittest.TestCase):
                 )
             report = json.loads(destination.read_text(encoding="utf-8"))
 
-        self.assertFalse(report["run_completed"])
         self.assertEqual([], report["samples"])
+        self.assertEqual("failed", report["run_status"])
+        self.assertEqual("load failed", report["error_message"])
         self.assertEqual(1, session.close_calls)
 
     def test_aggregation_separates_failures_and_skips(self) -> None:
@@ -267,10 +263,33 @@ class BenchmarkRunnerTests(unittest.TestCase):
                 )
             report = json.loads(destination.read_text(encoding="utf-8"))
 
-        self.assertFalse(report["run_completed"])
         self.assertEqual(1, len(report["samples"]))
         self.assertEqual("cuda_out_of_memory", report["samples"][0]["error_type"])
+        self.assertEqual("failed", report["run_status"])
+        self.assertIn("CUDA out of memory", report["error_message"])
         self.assertEqual(1, session.infer.call_count)
+
+    def test_keyboard_interrupt_is_checkpointed_as_interrupted(self) -> None:
+        session = FakeSession()
+        telemetry = FakeTelemetry()
+        session.infer = Mock(side_effect=KeyboardInterrupt())
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            destination = root / "benchmark.json"
+            writer = BenchmarkReportWriter(destination, metadata(warmups=0))
+            with self.assertRaises(KeyboardInterrupt):
+                run_benchmark(
+                    session,
+                    write_images(root, 1),
+                    writer,
+                    warmup_iterations=0,
+                    clock=Mock(side_effect=(0.0, 0.1, 0.2, 0.3)),
+                    telemetry=telemetry,
+                )
+            report = json.loads(destination.read_text(encoding="utf-8"))
+
+        self.assertEqual("interrupted", report["run_status"])
+        self.assertEqual("Interrupted by user", report["error_message"])
 
     def test_runner_rejects_metadata_mismatch_before_writing(self) -> None:
         session = FakeSession()

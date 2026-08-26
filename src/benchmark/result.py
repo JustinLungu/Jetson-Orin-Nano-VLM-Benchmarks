@@ -7,9 +7,12 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Literal, Sequence
 
+from src.benchmark.provenance import BenchmarkProvenance
+
 BenchmarkSampleStatus = Literal["passed", "failed", "skipped"]
 BenchmarkRunScope = Literal["limited", "full"]
-BENCHMARK_SCHEMA_VERSION = 3
+BenchmarkRunStatus = Literal["running", "completed", "interrupted", "failed"]
+BENCHMARK_SCHEMA_VERSION = 4
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,6 +34,7 @@ class BenchmarkRunMetadata:
     run_scope: BenchmarkRunScope
     input_profile: str
     requested_image_size: int | None
+    provenance: BenchmarkProvenance
 
     def __post_init__(self) -> None:
         if self.batch_size <= 0:
@@ -70,10 +74,6 @@ class BenchmarkSampleResult:
     generated_tokens: int | None = None
     error_type: str | None = None
     error_message: str | None = None
-    source_width: int | None = None
-    source_height: int | None = None
-    processed_width: int | None = None
-    processed_height: int | None = None
 
     def __post_init__(self) -> None:
         if self.status not in {"passed", "failed", "skipped"}:
@@ -91,24 +91,6 @@ class BenchmarkSampleResult:
             raise ValueError("inference_time_seconds cannot be negative")
         if self.generated_tokens is not None and self.generated_tokens < 0:
             raise ValueError("generated_tokens cannot be negative")
-        if (self.source_width is None) != (self.source_height is None):
-            raise ValueError("source_width and source_height must be recorded together")
-        if (
-            self.source_width is not None
-            and self.source_height is not None
-            and (self.source_width <= 0 or self.source_height <= 0)
-        ):
-            raise ValueError("source image dimensions must be positive")
-        if (self.processed_width is None) != (self.processed_height is None):
-            raise ValueError(
-                "processed_width and processed_height must be recorded together"
-            )
-        if (
-            self.processed_width is not None
-            and self.processed_height is not None
-            and (self.processed_width <= 0 or self.processed_height <= 0)
-        ):
-            raise ValueError("processed image dimensions must be positive")
 
 
 @dataclass(frozen=True, slots=True)
@@ -183,7 +165,8 @@ class BenchmarkReport:
     created_at: str
     metadata: BenchmarkRunMetadata
     samples: tuple[BenchmarkSampleResult, ...]
-    run_completed: bool
+    run_status: BenchmarkRunStatus
+    error_message: str | None = None
     summary: BenchmarkSummary | None = None
     jetson_metrics: JetsonBenchmarkMetrics | None = None
     schema_version: int = BENCHMARK_SCHEMA_VERSION
@@ -192,10 +175,15 @@ class BenchmarkReport:
         indices = [sample.index for sample in self.samples]
         if indices != list(range(len(self.samples))):
             raise ValueError("Sample indices must be contiguous and start at zero")
-        if self.run_completed and self.summary is None:
+        if self.run_status == "completed" and self.summary is None:
             raise ValueError("A completed report requires a summary")
-        if not self.run_completed and self.summary is not None:
-            raise ValueError("An incomplete report cannot contain a final summary")
+        if self.run_status != "completed" and self.summary is not None:
+            raise ValueError("A non-completed report cannot contain a final summary")
+        terminated = self.run_status in {"interrupted", "failed"}
+        if terminated and not self.error_message:
+            raise ValueError("An interrupted or failed report requires an error message")
+        if not terminated and self.error_message:
+            raise ValueError("A running or completed report cannot contain an error")
         if self.summary is not None:
             reported_samples = (
                 self.summary.processed_images
@@ -228,16 +216,18 @@ class BenchmarkReportWriter:
         self,
         samples: Sequence[BenchmarkSampleResult],
         *,
-        run_completed: bool = False,
         summary: BenchmarkSummary | None = None,
         jetson_metrics: JetsonBenchmarkMetrics | None = None,
+        run_status: BenchmarkRunStatus = "running",
+        error_message: str | None = None,
     ) -> Path:
         """Replace the report atomically with the supplied progress snapshot."""
         report = BenchmarkReport(
             created_at=self.created_at.isoformat(),
             metadata=self.metadata,
             samples=tuple(samples),
-            run_completed=run_completed,
+            run_status=run_status,
+            error_message=error_message,
             summary=summary,
             jetson_metrics=jetson_metrics,
         )

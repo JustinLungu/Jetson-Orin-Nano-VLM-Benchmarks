@@ -58,11 +58,6 @@ class YoloInferenceSession(InferenceSession):
             raise RuntimeError("YOLO session must be loaded before inference")
         return self.model.predict(**prepared)
 
-    def processed_image_size(self, prepared: dict[str, Any]) -> tuple[int, int]:
-        """Return the fixed square tensor shape requested from Ultralytics."""
-        image_size = int(prepared["imgsz"])
-        return image_size, image_size
-
     def summarize(
         self,
         output: Any,

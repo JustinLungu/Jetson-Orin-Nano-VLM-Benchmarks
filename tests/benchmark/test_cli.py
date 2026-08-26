@@ -11,6 +11,7 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from src.benchmark.datasets import BenchmarkDataset, BenchmarkImage
+from src.benchmark.provenance import BenchmarkProvenance
 from src.benchmark.cli import (
     benchmark_report_path,
     main,
@@ -21,6 +22,10 @@ from src.benchmark.result import BenchmarkSummary
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 BENCHMARK_SCRIPT = REPOSITORY_ROOT / "scripts/run_benchmark.sh"
+
+
+def provenance() -> BenchmarkProvenance:
+    return BenchmarkProvenance("abc123", "25W", True)
 
 
 def completed_summary(processed_images: int = 2) -> BenchmarkSummary:
@@ -137,6 +142,7 @@ class BenchmarkCliTests(unittest.TestCase):
                 revision_resolver=Mock(return_value="revision"),
                 runtime_collector=Mock(return_value={"torch": "2.8.0"}),
                 desktop_detector=Mock(return_value=False),
+                provenance_collector=Mock(return_value=provenance()),
                 runner=runner,
                 created_at=created_at,
             )
@@ -156,6 +162,7 @@ class BenchmarkCliTests(unittest.TestCase):
         self.assertEqual("limited", writer.metadata.run_scope)
         self.assertEqual("model-native", writer.metadata.input_profile)
         self.assertIsNone(writer.metadata.requested_image_size)
+        self.assertEqual("abc123", writer.metadata.provenance.repository_revision)
 
     def test_yolo_uses_a_recorded_fixed_square_input_profile(self) -> None:
         dataset = BenchmarkDataset(
@@ -180,6 +187,7 @@ class BenchmarkCliTests(unittest.TestCase):
                 revision_resolver=Mock(return_value="revision"),
                 runtime_collector=Mock(return_value={}),
                 desktop_detector=Mock(return_value=False),
+                provenance_collector=Mock(return_value=provenance()),
                 runner=runner,
             )
 

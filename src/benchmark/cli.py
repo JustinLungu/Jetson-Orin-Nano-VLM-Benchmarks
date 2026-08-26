@@ -14,6 +14,10 @@ from src.benchmark.datasets import (
     load_benchmark_dataset,
     validate_dataset_compatibility,
 )
+from src.benchmark.provenance import (
+    BenchmarkProvenance,
+    collect_benchmark_provenance,
+)
 from src.benchmark.result import (
     BenchmarkReportWriter,
     BenchmarkRunMetadata,
@@ -172,6 +176,9 @@ def main(
         collect_benchmark_runtime_versions
     ),
     desktop_detector: Callable[[], bool] = desktop_is_active,
+    provenance_collector: Callable[[], BenchmarkProvenance] = (
+        collect_benchmark_provenance
+    ),
     runner: BenchmarkRunner = run_benchmark,
     created_at: datetime | None = None,
 ) -> int:
@@ -238,6 +245,7 @@ def main(
             run_scope=dataset.run_scope,
             input_profile="fixed-square" if family == "yolo" else "model-native",
             requested_image_size=yolo_image_size,
+            provenance=provenance_collector(),
         )
         report_created_at = created_at or datetime.now(timezone.utc)
         report_path = arguments.output or benchmark_report_path(

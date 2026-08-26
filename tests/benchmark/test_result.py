@@ -12,6 +12,7 @@ from src.benchmark.result import (
     BenchmarkSampleResult,
     BenchmarkSummary,
 )
+from src.benchmark.provenance import BenchmarkProvenance
 
 
 def metadata() -> BenchmarkRunMetadata:
@@ -31,6 +32,7 @@ def metadata() -> BenchmarkRunMetadata:
         run_scope="limited",
         input_profile="model-native",
         requested_image_size=None,
+        provenance=BenchmarkProvenance("abc123", "25W", True),
     )
 
 
@@ -41,10 +43,6 @@ def passed_sample(index: int = 0) -> BenchmarkSampleResult:
         status="passed",
         inference_time_seconds=0.5,
         generated_tokens=16,
-        source_width=640,
-        source_height=480,
-        processed_width=384,
-        processed_height=384,
     )
 
 
@@ -90,7 +88,7 @@ class BenchmarkResultTests(unittest.TestCase):
             writer.write([passed_sample()])
 
             checkpoint = json.loads(destination.read_text(encoding="utf-8"))
-            self.assertFalse(checkpoint["run_completed"])
+            self.assertEqual("running", checkpoint["run_status"])
             self.assertIsNone(checkpoint["summary"])
             self.assertEqual("fp16", checkpoint["metadata"]["runtime_precision"])
             self.assertEqual(0.5, checkpoint["samples"][0]["inference_time_seconds"])
@@ -98,17 +96,16 @@ class BenchmarkResultTests(unittest.TestCase):
 
             writer.write(
                 [passed_sample()],
-                run_completed=True,
                 summary=summary(),
+                run_status="completed",
             )
             completed = json.loads(destination.read_text(encoding="utf-8"))
 
-        self.assertTrue(completed["run_completed"])
-        self.assertEqual(3, completed["schema_version"])
+        self.assertEqual(4, completed["schema_version"])
         self.assertEqual(1, completed["summary"]["processed_images"])
         self.assertEqual("limited", completed["metadata"]["run_scope"])
-        self.assertEqual(640, completed["samples"][0]["source_width"])
-        self.assertEqual(384, completed["samples"][0]["processed_width"])
+        self.assertEqual("completed", completed["run_status"])
+        self.assertEqual("abc123", completed["metadata"]["provenance"]["repository_revision"])
 
     def test_metadata_scope_must_match_requested_limit(self) -> None:
         values = metadata()
@@ -129,6 +126,7 @@ class BenchmarkResultTests(unittest.TestCase):
                 run_scope="full",
                 input_profile=values.input_profile,
                 requested_image_size=values.requested_image_size,
+                provenance=values.provenance,
             )
 
     def test_completed_report_requires_matching_summary(self) -> None:
@@ -137,9 +135,23 @@ class BenchmarkResultTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, "counts must equal"):
                 writer.write(
                     [passed_sample()],
-                    run_completed=True,
                     summary=summary(sample_count=2),
+                    run_status="completed",
                 )
+
+    def test_failed_report_requires_and_persists_a_termination_reason(self) -> None:
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / "report.json"
+            writer = BenchmarkReportWriter(destination, metadata())
+            writer.write(
+                [passed_sample()],
+                run_status="failed",
+                error_message="load failed",
+            )
+            report = json.loads(destination.read_text(encoding="utf-8"))
+
+        self.assertEqual("failed", report["run_status"])
+        self.assertEqual("load failed", report["error_message"])
 
     def test_sample_indices_must_be_contiguous(self) -> None:
         with tempfile.TemporaryDirectory() as directory:

@@ -77,19 +77,6 @@ class VlmInferenceSession(InferenceSession):
         with self.torch.inference_mode():
             return self.model.generate(**prepared.generation_arguments)
 
-    def processed_image_size(
-        self,
-        prepared: PreparedVlmInput,
-    ) -> tuple[int, int] | None:
-        """Read the model-native processed image shape from processor tensors."""
-        inputs = prepared.inputs
-        pixel_values = inputs.get("pixel_values") if hasattr(inputs, "get") else None
-        shape = getattr(pixel_values, "shape", None)
-        if shape is None or len(shape) < 2:
-            return None
-        height, width = int(shape[-2]), int(shape[-1])
-        return width, height
-
     def summarize(
         self,
         output: Any,
