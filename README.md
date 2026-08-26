@@ -224,29 +224,7 @@ Do not sync the `yolo` group on the Jetson because its generic resolved Torch pa
 can replace the JetPack-compatible builds. The shell entry points use
 `uv run --frozen --no-sync` for the same reason.
 
-### 5. Run smoke tests
-
-Smoke tests answer only whether one downloaded model can complete CUDA inference:
-
-```bash
-./scripts/smoke_test_models.sh yolo
-
-./scripts/smoke_test_models.sh --precision fp16 \
-  smolvlm2-256m smolvlm2-500m
-
-./scripts/smoke_test_models.sh --precision fp32 \
-  smolvlm2-256m smolvlm2-500m
-
-./scripts/smoke_test_models.sh smolvlm2-2.2b
-```
-
-> [!WARNING]
-> Do not run the `small-vlm` or `all` smoke selectors on the 8 GB board. They include
-> Qwen2.5-VL-3B and Phi-3.5 Vision. Use only the validated selectors above.
-
-Smoke reports are written under `results/smoke/`.
-
-### 6. Validate the benchmark pipeline
+### 5. Validate the benchmark pipeline
 
 Run all four groups on small deterministic subsets:
 
@@ -258,9 +236,11 @@ Run all four groups on small deterministic subsets:
 ```
 
 Each SmolVLM group includes 256M FP16/FP32, 500M FP16/FP32, and 2.2B FP16. Limited reports
-remain directly under `results/benchmarks/`.
+remain directly under `results/benchmarks/`. Use `--limit 1` when only a quick inference
+check is needed; it exercises the same loading, warm-up, inference, metrics, reporting,
+and cleanup path as the full benchmark.
 
-### 7. Run the complete datasets
+### 6. Run the complete datasets
 
 Omit `--limit` to execute the full experiment:
 

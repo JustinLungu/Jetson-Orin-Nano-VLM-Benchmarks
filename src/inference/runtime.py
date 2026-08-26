@@ -179,7 +179,7 @@ def collect_runtime_metadata(
     *,
     tegra_release_path: Path = TEGRA_RELEASE_PATH,
 ) -> dict[str, str]:
-    """Collect software and device identity included with smoke-test results."""
+    """Collect software and device identity included with benchmark results."""
     l4t_release = "unknown"
     if tegra_release_path.is_file():
         l4t_release = tegra_release_path.read_text(encoding="utf-8").splitlines()[0]

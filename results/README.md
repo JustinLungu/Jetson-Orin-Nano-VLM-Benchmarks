@@ -1,13 +1,7 @@
 # Generated results
 
-Smoke tests write timestamped JSON reports under `results/smoke/`. Limited performance
-benchmarks write reports under `results/benchmarks/`, while complete-dataset runs use
-`results/benchmarks/full_run/`.
-
-Each smoke report contains the fixed input path and one result per selected model,
-including status, runtime versions, load time, inference time, peak CUDA memory, a short
-prediction summary, and generated-token count for VLMs. Failed results include a stable
-error type and message.
+Limited benchmarks write reports under `results/benchmarks/`, while complete-dataset runs
+use `results/benchmarks/full_run/`.
 
 Each benchmark report contains its model, dataset, precision, software environment,
 per-image inference status and latency, final latency/throughput
