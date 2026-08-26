@@ -1,4 +1,4 @@
-"""Offline tests for shared inference lifecycle utilities."""
+"""Offline tests for shared inference runtime utilities."""
 
 import tempfile
 import unittest
@@ -6,7 +6,7 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import Mock, call, patch
 
-from src.smoke_test.runtime import (
+from src.inference.runtime import (
     cleanup_cuda,
     collect_runtime_metadata,
     infer_jetpack_family,
@@ -89,8 +89,8 @@ class RuntimeMetadataTests(unittest.TestCase):
                 "# R36 (release), REVISION: 4.7, BOARD: generic\n",
                 encoding="utf-8",
             )
-            with patch("src.smoke_test.runtime.platform.machine", return_value="aarch64"), patch(
-                "src.smoke_test.runtime.platform.python_version",
+            with patch("src.inference.runtime.platform.machine", return_value="aarch64"), patch(
+                "src.inference.runtime.platform.python_version",
                 return_value="3.10.12",
             ):
                 metadata = collect_runtime_metadata(
@@ -112,12 +112,12 @@ class RuntimeMetadataTests(unittest.TestCase):
 
 class TegrastatsParsingTests(unittest.TestCase):
     SAMPLE_ONE = (
-        "RAM 3415/7620MB CPU [75%@1344,85%@1344,off,79%@1344] "
+        "RAM 3415/7620MB SWAP 654/3810MB CPU [75%@1344,85%@1344,off,79%@1344] "
         "GR3D_FREQ 13%@[917] cpu@49.031C gpu@48.406C tj@49.031C "
         "VDD_IN 8527mW/4783mW"
     )
     SAMPLE_TWO = (
-        "RAM 3488/7620MB CPU [81%@1344,68%@1344,66%@1344] "
+        "RAM 3488/7620MB SWAP 700/3810MB CPU [81%@1344,68%@1344,66%@1344] "
         "GR3D_FREQ 47%@[712] cpu@49.343C gpu@48.468C tj@49.156C "
         "VDD_IN 8147mW/4814mW"
     )
@@ -129,6 +129,8 @@ class TegrastatsParsingTests(unittest.TestCase):
         self.assertEqual(13.0, sample["gpu"])
         self.assertEqual(8.527, sample["power_watts"])
         self.assertEqual(49.031, sample["temperature_celsius"])
+        self.assertEqual(3415, sample["ram_used_mib"])
+        self.assertEqual(654, sample["swap_used_mib"])
 
     def test_summarizes_average_and_peak(self) -> None:
         samples = [

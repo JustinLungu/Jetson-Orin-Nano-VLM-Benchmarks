@@ -1,0 +1,290 @@
+"""Offline tests for benchmark execution and latency aggregation."""
+
+import json
+import tempfile
+import unittest
+from contextlib import nullcontext
+from pathlib import Path
+from unittest.mock import Mock
+
+from PIL import Image
+
+from src.benchmark.datasets import BenchmarkImage
+from src.benchmark.result import (
+    BenchmarkReportWriter,
+    BenchmarkRunMetadata,
+    BenchmarkSampleResult,
+    JetsonBenchmarkMetrics,
+)
+from src.benchmark.runner import (
+    BenchmarkExecutionError,
+    aggregate_benchmark_results,
+    run_benchmark,
+)
+from src.inference.base import InferenceSession
+
+
+class FakeOutOfMemoryError(RuntimeError):
+    pass
+
+
+class FakeCuda:
+    OutOfMemoryError = FakeOutOfMemoryError
+
+    def __init__(self) -> None:
+        self.synchronizations = 0
+        self.empty_cache_calls = 0
+
+    def synchronize(self) -> None:
+        self.synchronizations += 1
+
+    @staticmethod
+    def is_available() -> bool:
+        return True
+
+    def empty_cache(self) -> None:
+        self.empty_cache_calls += 1
+
+
+class FakeTorch:
+    def __init__(self) -> None:
+        self.cuda = FakeCuda()
+        self.inference_mode = nullcontext
+
+
+class FakeSession(InferenceSession):
+    family = "small-vlm"
+    precision = "fp16"
+
+    def __init__(self) -> None:
+        super().__init__("smolvlm2-256m", torch_module=FakeTorch())
+        self.load_calls = 0
+        self.inference_calls = 0
+        self.close_calls = 0
+
+    def load(self) -> None:
+        self.load_calls += 1
+        self.model = object()
+
+    def prepare(self, image: Image.Image) -> object:
+        return object()
+
+    def infer(self, prepared: object) -> object:
+        self.inference_calls += 1
+        return object()
+
+    def summarize(self, output: object, prepared: object) -> tuple[str, int]:
+        return "complete", 2
+
+    def close(self) -> None:
+        self.close_calls += 1
+        super().close()
+
+
+class FakeTelemetry:
+    def __init__(self) -> None:
+        self.start_calls = 0
+        self.model_loaded_calls = 0
+        self.stop_calls = 0
+        self.metrics = JetsonBenchmarkMetrics(
+            ram_total_mib=7620,
+            ram_before_load_mib=1700,
+            ram_after_load_mib=2200,
+            peak_ram_used_mib=2400,
+            peak_swap_used_mib=10,
+            peak_cuda_memory_mib=533.1,
+            average_power_watts=5.0,
+            peak_power_watts=6.0,
+            peak_temperature_celsius=48.0,
+            tegrastats_available=True,
+        )
+
+    def start(self) -> None:
+        self.start_calls += 1
+
+    def mark_model_loaded(self) -> None:
+        self.model_loaded_calls += 1
+
+    def stop(self) -> JetsonBenchmarkMetrics:
+        self.stop_calls += 1
+        return self.metrics
+
+
+def metadata(warmups: int = 1) -> BenchmarkRunMetadata:
+    return BenchmarkRunMetadata(
+        model="smolvlm2-256m",
+        family="small-vlm",
+        runtime_precision="fp16",
+        dataset="imagenette",
+        warmup_iterations=warmups,
+        runtime_versions={},
+        desktop_active=False,
+        dataset_total_images=3,
+        selected_images=3,
+        run_scope="full",
+        input_profile="model-native",
+        requested_image_size=None,
+    )
+
+
+def write_images(directory: Path, count: int) -> tuple[BenchmarkImage, ...]:
+    samples = []
+    for index in range(count):
+        path = directory / f"image-{index}.png"
+        with Image.new("RGB", (1, 1), "red") as image:
+            image.save(path)
+        samples.append(BenchmarkImage(index, path.name, path))
+    return tuple(samples)
+
+
+class BenchmarkRunnerTests(unittest.TestCase):
+    def test_loads_once_excludes_warmup_and_aggregates_latency(self) -> None:
+        session = FakeSession()
+        telemetry = FakeTelemetry()
+        clock = Mock(
+            side_effect=(
+                0.0,
+                0.1,
+                0.6,
+                1.0,
+                1.1,
+                1.2,
+                1.4,
+                1.5,
+                1.8,
+                2.0,
+            )
+        )
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            destination = root / "benchmark.json"
+            writer = BenchmarkReportWriter(destination, metadata())
+            summary = run_benchmark(
+                session,
+                write_images(root, 3),
+                writer,
+                warmup_iterations=1,
+                clock=clock,
+                telemetry=telemetry,
+            )
+            report = json.loads(destination.read_text(encoding="utf-8"))
+
+        self.assertEqual(1, session.load_calls)
+        self.assertEqual(4, session.inference_calls)
+        self.assertEqual(1, session.close_calls)
+        self.assertEqual(8, session.torch.cuda.synchronizations)
+        self.assertEqual(1, session.torch.cuda.empty_cache_calls)
+        self.assertEqual(1, telemetry.start_calls)
+        self.assertEqual(1, telemetry.model_loaded_calls)
+        self.assertEqual(1, telemetry.stop_calls)
+        self.assertAlmostEqual(0.5, summary.model_load_seconds)
+        self.assertAlmostEqual(0.2, summary.mean_inference_seconds)
+        self.assertAlmostEqual(0.2, summary.median_inference_seconds)
+        self.assertAlmostEqual(0.3, summary.p95_inference_seconds)
+        self.assertAlmostEqual(5.0, summary.images_per_second)
+        self.assertAlmostEqual(10.0, summary.generated_tokens_per_second)
+        self.assertEqual(3, len(report["samples"]))
+        self.assertEqual("completed", report["run_status"])
+        self.assertEqual(2400, report["jetson_metrics"]["peak_ram_used_mib"])
+
+    def test_load_failure_preserves_empty_incomplete_report(self) -> None:
+        session = FakeSession()
+        telemetry = FakeTelemetry()
+        session.load = Mock(side_effect=RuntimeError("load failed"))
+        with tempfile.TemporaryDirectory() as directory:
+            destination = Path(directory) / "benchmark.json"
+            writer = BenchmarkReportWriter(destination, metadata(warmups=0))
+            with self.assertRaisesRegex(RuntimeError, "load failed"):
+                run_benchmark(
+                    session,
+                    (),
+                    writer,
+                    warmup_iterations=0,
+                    clock=Mock(side_effect=(0.0, 0.1)),
+                    telemetry=telemetry,
+                )
+            report = json.loads(destination.read_text(encoding="utf-8"))
+
+        self.assertEqual([], report["samples"])
+        self.assertEqual("failed", report["run_status"])
+        self.assertEqual("load failed", report["error_message"])
+        self.assertEqual(1, session.close_calls)
+
+    def test_aggregation_separates_failures_and_skips(self) -> None:
+        results = [
+            BenchmarkSampleResult(0, "ok.jpg", "passed", 0.25),
+            BenchmarkSampleResult(
+                1,
+                "failed.jpg",
+                "failed",
+                error_type="inference_error",
+            ),
+            BenchmarkSampleResult(
+                2,
+                "bad.jpg",
+                "skipped",
+                error_type="unreadable_image",
+            ),
+        ]
+
+        summary = aggregate_benchmark_results(
+            results,
+            model_load_seconds=1.0,
+            total_run_seconds=2.0,
+        )
+
+        self.assertEqual(1, summary.processed_images)
+        self.assertEqual(1, summary.failed_images)
+        self.assertEqual(1, summary.skipped_images)
+        self.assertEqual(4.0, summary.images_per_second)
+        self.assertIsNone(summary.generated_tokens_per_second)
+
+    def test_cuda_oom_is_checkpointed_and_stops_the_run(self) -> None:
+        session = FakeSession()
+        telemetry = FakeTelemetry()
+        session.infer = Mock(side_effect=FakeOutOfMemoryError("CUDA out of memory"))
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            destination = root / "benchmark.json"
+            writer = BenchmarkReportWriter(destination, metadata(warmups=0))
+            with self.assertRaisesRegex(BenchmarkExecutionError, "CUDA out of memory"):
+                run_benchmark(
+                    session,
+                    write_images(root, 2),
+                    writer,
+                    warmup_iterations=0,
+                    clock=Mock(side_effect=(0.0, 0.1, 0.2, 0.3)),
+                    telemetry=telemetry,
+                )
+            report = json.loads(destination.read_text(encoding="utf-8"))
+
+        self.assertEqual(1, len(report["samples"]))
+        self.assertEqual("cuda_out_of_memory", report["samples"][0]["error_type"])
+        self.assertEqual("failed", report["run_status"])
+        self.assertIn("CUDA out of memory", report["error_message"])
+        self.assertEqual(1, session.infer.call_count)
+
+    def test_keyboard_interrupt_is_checkpointed_as_interrupted(self) -> None:
+        session = FakeSession()
+        telemetry = FakeTelemetry()
+        session.infer = Mock(side_effect=KeyboardInterrupt())
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            destination = root / "benchmark.json"
+            writer = BenchmarkReportWriter(destination, metadata(warmups=0))
+            with self.assertRaises(KeyboardInterrupt):
+                run_benchmark(
+                    session,
+                    write_images(root, 1),
+                    writer,
+                    warmup_iterations=0,
+                    clock=Mock(side_effect=(0.0, 0.1, 0.2, 0.3)),
+                    telemetry=telemetry,
+                )
+            report = json.loads(destination.read_text(encoding="utf-8"))
+
+        self.assertEqual("interrupted", report["run_status"])
+        self.assertEqual("Interrupted by user", report["error_message"])
+
+if __name__ == "__main__":
+    unittest.main()

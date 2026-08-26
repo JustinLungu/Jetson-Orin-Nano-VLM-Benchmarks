@@ -6,4 +6,4 @@ SCRIPT_DIRECTORY="$(cd -- "$(dirname -- "${BASH_SOURCE[0]}")" && pwd -P)"
 REPOSITORY_ROOT="$(cd -- "${SCRIPT_DIRECTORY}/.." && pwd -P)"
 
 cd "${REPOSITORY_ROOT}"
-uv run --frozen --no-sync python -m src.smoke_test "$@"
+uv run --frozen --no-sync python -m src.benchmark.group_cli "$@"

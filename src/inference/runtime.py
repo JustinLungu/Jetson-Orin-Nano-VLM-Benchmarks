@@ -1,4 +1,4 @@
-"""Runtime measurement and cleanup helpers shared by smoke-test adapters."""
+"""Runtime measurement and cleanup helpers shared by inference workflows."""
 
 import gc
 import platform
@@ -69,7 +69,7 @@ class TegrastatsMonitor:
 
 
 def parse_tegrastats_line(line: str) -> dict[str, float] | None:
-    """Extract the four requested measurements from one tegrastats sample."""
+    """Extract requested utilization, memory, power, and temperature measurements."""
     cpu_match = re.search(r"CPU \[([^]]+)]", line)
     gpu_match = re.search(r"GR3D_FREQ\s+(\d+)%", line)
     power_match = re.search(r"VDD_IN\s+(\d+)mW", line)
@@ -83,12 +83,21 @@ def parse_tegrastats_line(line: str) -> dict[str, float] | None:
     cpu_values = [float(value) for value in re.findall(r"(\d+)%@", cpu_match.group(1))]
     if not cpu_values:
         return None
-    return {
+    sample = {
         "cpu": sum(cpu_values) / len(cpu_values),
         "gpu": float(gpu_match.group(1)),
         "power_watts": float(power_match.group(1)) / 1000,
         "temperature_celsius": max(temperatures),
     }
+    ram_match = re.search(r"RAM\s+(\d+)/(\d+)MB", line)
+    swap_match = re.search(r"SWAP\s+(\d+)/(\d+)MB", line)
+    if ram_match:
+        sample["ram_used_mib"] = float(ram_match.group(1))
+        sample["ram_total_mib"] = float(ram_match.group(2))
+    if swap_match:
+        sample["swap_used_mib"] = float(swap_match.group(1))
+        sample["swap_total_mib"] = float(swap_match.group(2))
+    return sample
 
 
 def summarize_tegrastats(
@@ -170,7 +179,7 @@ def collect_runtime_metadata(
     *,
     tegra_release_path: Path = TEGRA_RELEASE_PATH,
 ) -> dict[str, str]:
-    """Collect software and device identity included with smoke-test results."""
+    """Collect software and device identity included with benchmark results."""
     l4t_release = "unknown"
     if tegra_release_path.is_file():
         l4t_release = tegra_release_path.read_text(encoding="utf-8").splitlines()[0]
