@@ -235,10 +235,12 @@ Run all four groups on small deterministic subsets:
 ./scripts/run_benchmark_group.sh smolvlm imagenette --limit 10
 ```
 
-Each SmolVLM group includes 256M FP16/FP32, 500M FP16/FP32, and 2.2B FP16. Limited reports
-remain directly under `results/benchmarks/`. Use `--limit 1` when only a quick inference
-check is needed; it exercises the same loading, warm-up, inference, metrics, reporting,
-and cleanup path as the full benchmark.
+Each SmolVLM group runs the memory-sensitive 2.2B FP16 configuration first, followed by
+256M FP16/FP32 and 500M FP16/FP32. This makes a capacity failure stop the group before the
+longer full-dataset runs consume time. Limited reports remain directly under
+`results/benchmarks/`. Use `--limit 1` when only a quick inference check is needed; it
+exercises the same loading, warm-up, inference, metrics, reporting, and cleanup path as
+the full benchmark.
 
 ### 6. Run the complete datasets
 

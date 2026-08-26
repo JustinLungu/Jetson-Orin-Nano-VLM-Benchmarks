@@ -52,8 +52,9 @@ Run the four experiment groups:
 ```
 
 Add `--limit 1` for a quick inference check or a larger `--limit` for validation runs.
-SmolVLM groups include SmolVLM2-2.2B FP16; running headless is recommended for its tighter
-memory margin but is not enforced by the command.
+SmolVLM groups run SmolVLM2-2.2B FP16 first so a capacity failure happens before the
+smaller configurations. Running headless is recommended for its tighter memory margin
+but is not enforced by the command.
 
 Omit `--limit` for the full dataset. The model and precision combinations are fixed by
 the group. Qwen2.5-VL-3B and Phi-3.5 Vision are excluded for safety.

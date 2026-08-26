@@ -5,7 +5,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import Mock, call
 
-from src.benchmark.group_cli import benchmark_group_configurations, main
+from src.benchmark.group_cli import main
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 GROUP_SCRIPT = REPOSITORY_ROOT / "scripts/run_benchmark_group.sh"
@@ -40,8 +40,11 @@ class BenchmarkGroupCliTests(unittest.TestCase):
         self.assertEqual(0, exit_code)
         self.assertEqual(
             [
-                call(model, "coco", precision, 10)
-                for model, precision in benchmark_group_configurations("smolvlm")
+                call("smolvlm2-2.2b", "coco", "fp16", 10),
+                call("smolvlm2-256m", "coco", "fp16", 10),
+                call("smolvlm2-256m", "coco", "fp32", 10),
+                call("smolvlm2-500m", "coco", "fp16", 10),
+                call("smolvlm2-500m", "coco", "fp32", 10),
             ],
             command.call_args_list,
         )

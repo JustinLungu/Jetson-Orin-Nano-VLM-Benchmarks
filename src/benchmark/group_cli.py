@@ -11,11 +11,11 @@ YOLO_BENCHMARK_CONFIGURATIONS = (
     ("yolo26n", None),
 )
 SMOLVLM_BENCHMARK_CONFIGURATIONS = (
+    ("smolvlm2-2.2b", "fp16"),
     ("smolvlm2-256m", "fp16"),
     ("smolvlm2-256m", "fp32"),
     ("smolvlm2-500m", "fp16"),
     ("smolvlm2-500m", "fp32"),
-    ("smolvlm2-2.2b", "fp16"),
 )
 BenchmarkCommand = Callable[[str, str, str | None, int | None], int]
 
