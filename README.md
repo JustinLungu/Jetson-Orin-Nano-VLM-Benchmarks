@@ -283,3 +283,17 @@ one synchronized latency and status per image, plus compact summaries:
 Reports are atomically checkpointed after every image. `run_status` is `running`,
 `completed`, `interrupted`, or `failed`; interrupted and failed reports retain one concise
 error message. Generated results are device-specific and ignored by Git.
+
+## Future work
+
+- Repeat the experiment through SSH with the graphical desktop stopped. This would show
+  whether the recovered unified memory makes 2.2B FP16 consistently reliable and may make
+  a carefully isolated Qwen test possible. Qwen remains excluded from the current groups
+  because its FP16 loading restarted the device.
+- Evaluate quantized checkpoints and Jetson-optimized backends for Qwen and Phi before
+  attempting them as normal benchmark configurations on the 8 GB board.
+- Repeat completed runs across multiple trials, locked clocks, headless operation, and
+  other power modes, reporting each hardware setup separately.
+- Extend the workload to longer VLM generations, live image or video streams, and a
+  separate accuracy study. These should remain distinct from the current fixed 16-token,
+  batch-one performance experiment.
