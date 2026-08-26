@@ -9,8 +9,8 @@ including status, runtime versions, load time, inference time, peak CUDA memory,
 prediction summary, and generated-token count for VLMs. Failed results include a stable
 error type and message.
 
-Each benchmark report contains its model, dataset, precision, checkpoint identity,
-software environment, per-image inference status and latency, final latency/throughput
+Each benchmark report contains its model, dataset, precision, software environment,
+per-image inference status and latency, final latency/throughput
 summary, and compact Jetson RAM, CUDA-memory, swap, power, and temperature measurements.
 It is atomically replaced after every image. `run_status` identifies running, completed,
 interrupted, and failed reports.

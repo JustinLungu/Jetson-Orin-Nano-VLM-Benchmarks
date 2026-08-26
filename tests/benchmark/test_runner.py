@@ -16,7 +16,6 @@ from src.benchmark.result import (
     BenchmarkSampleResult,
     JetsonBenchmarkMetrics,
 )
-from src.benchmark.provenance import BenchmarkProvenance
 from src.benchmark.runner import (
     BenchmarkExecutionError,
     aggregate_benchmark_results,
@@ -117,18 +116,14 @@ def metadata(warmups: int = 1) -> BenchmarkRunMetadata:
         family="small-vlm",
         runtime_precision="fp16",
         dataset="imagenette",
-        batch_size=1,
         warmup_iterations=warmups,
-        checkpoint_revision="revision",
         runtime_versions={},
         desktop_active=False,
         dataset_total_images=3,
         selected_images=3,
-        requested_limit=None,
         run_scope="full",
         input_profile="model-native",
         requested_image_size=None,
-        provenance=BenchmarkProvenance("abc123", "25W", True),
     )
 
 
@@ -290,15 +285,6 @@ class BenchmarkRunnerTests(unittest.TestCase):
 
         self.assertEqual("interrupted", report["run_status"])
         self.assertEqual("Interrupted by user", report["error_message"])
-
-    def test_runner_rejects_metadata_mismatch_before_writing(self) -> None:
-        session = FakeSession()
-        wrong_metadata = metadata(warmups=0)
-        with tempfile.TemporaryDirectory() as directory:
-            writer = BenchmarkReportWriter(Path(directory) / "report.json", wrong_metadata)
-            with self.assertRaisesRegex(ValueError, "warm-up count"):
-                run_benchmark(session, (), writer, warmup_iterations=1)
-
 
 if __name__ == "__main__":
     unittest.main()

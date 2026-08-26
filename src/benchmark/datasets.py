@@ -11,10 +11,6 @@ from PIL import Image, UnidentifiedImageError
 from src.constants import COCO_DIRECTORY, IMAGENETTE_DIRECTORY
 
 DATASET_SELECTORS = ("coco", "imagenette")
-SUPPORTED_DATASETS_BY_FAMILY = {
-    "yolo": DATASET_SELECTORS,
-    "small-vlm": DATASET_SELECTORS,
-}
 IMAGE_SUFFIXES = {".jpeg", ".jpg", ".png"}
 
 
@@ -114,17 +110,6 @@ def load_benchmark_dataset(
         total_image_count=total_image_count,
         requested_limit=limit,
     )
-
-
-def validate_dataset_compatibility(family: str, dataset: str) -> None:
-    """Reject unsupported model-family and dataset combinations."""
-    if family not in SUPPORTED_DATASETS_BY_FAMILY:
-        raise ValueError(f"Unknown model family: {family}")
-    supported = SUPPORTED_DATASETS_BY_FAMILY[family]
-    if dataset not in supported:
-        raise ValueError(
-            f"{family} does not support dataset {dataset}; supported: {', '.join(supported)}"
-        )
 
 
 def _coco_image_paths(directory: Path) -> list[Path]:

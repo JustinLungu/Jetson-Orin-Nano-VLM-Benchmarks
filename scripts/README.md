@@ -66,14 +66,7 @@ to `results/smoke/`. The script exits nonzero if any selected model fails.
 
 ## Performance benchmarks
 
-Run a short development benchmark before processing a complete dataset:
-
-```bash
-./scripts/run_benchmark.sh yolo11n coco --limit 10
-./scripts/run_benchmark.sh smolvlm2-256m imagenette --precision fp16 --limit 10
-```
-
-Run the four complete experiment groups through the same single-model benchmark path:
+Run the four experiment groups:
 
 ```bash
 ./scripts/run_benchmark_group.sh yolo coco
@@ -85,11 +78,8 @@ Run the four complete experiment groups through the same single-model benchmark 
 Add `--limit` for validation runs. SmolVLM groups include SmolVLM2-2.2B FP16; running
 headless is recommended for its tighter memory margin but is not enforced by the command.
 
-Omit `--limit` for the full dataset. VLMs require `--precision fp16` or
-`--precision fp32`; YOLO uses FP16 and rejects the precision option. SmolVLM2-2.2B
-supports FP16 only. Qwen2.5-VL-3B and
-Phi-3.5 Vision are blocked for safety.
+Omit `--limit` for the full dataset. The model and precision combinations are fixed by
+the group. Qwen2.5-VL-3B and Phi-3.5 Vision are excluded for safety.
 
 Limited reports are atomically checkpointed under `results/benchmarks/`; full-dataset
-reports go under `results/benchmarks/full_run/`. Use `--warmup` to change the default
-three excluded warm-ups and `--output` to select an exact JSON path.
+reports go under `results/benchmarks/full_run/`. Every run uses three excluded warm-ups.

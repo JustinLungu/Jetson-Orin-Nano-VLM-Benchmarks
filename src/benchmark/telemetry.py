@@ -92,8 +92,8 @@ class BenchmarkTelemetry:
             ram_after_load_mib=(
                 self.after_load.ram_used_mib if self.after_load is not None else None
             ),
-            peak_ram_used_mib=max(ram_values or fallback_ram),
-            peak_swap_used_mib=max(swap_values or fallback_swap),
+            peak_ram_used_mib=max(ram_values + fallback_ram),
+            peak_swap_used_mib=max(swap_values + fallback_swap),
             peak_cuda_memory_mib=(
                 peak_cuda_memory_mib(self.torch, self.device)
                 if self.model_loaded

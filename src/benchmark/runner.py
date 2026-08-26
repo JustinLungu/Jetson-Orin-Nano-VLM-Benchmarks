@@ -38,7 +38,6 @@ def run_benchmark(
     progress_callback: ProgressCallback | None = None,
 ) -> BenchmarkSummary:
     """Load once, benchmark every image, and atomically checkpoint each result."""
-    _validate_run_configuration(session, writer, warmup_iterations)
     results: list[BenchmarkSampleResult] = []
     writer.write(results)
     telemetry = telemetry or BenchmarkTelemetry(session.torch, session.device)
@@ -102,6 +101,8 @@ def run_benchmark(
             telemetry.stop()
         session.close()
         cleanup_cuda(session.torch)
+
+
 def aggregate_benchmark_results(
     results: Sequence[BenchmarkSampleResult],
     *,
@@ -218,21 +219,3 @@ def _nearest_rank_percentile(values: Sequence[float], percentile: float) -> floa
     ordered = sorted(values)
     index = max(0, math.ceil(percentile * len(ordered)) - 1)
     return ordered[index]
-
-
-def _validate_run_configuration(
-    session: InferenceSession,
-    writer: BenchmarkReportWriter,
-    warmup_iterations: int,
-) -> None:
-    metadata = writer.metadata
-    if warmup_iterations < 0:
-        raise ValueError("warmup_iterations cannot be negative")
-    if metadata.warmup_iterations != warmup_iterations:
-        raise ValueError("Writer metadata warm-up count does not match the runner")
-    if metadata.batch_size != 1:
-        raise ValueError("The initial benchmark runner supports only batch size 1")
-    expected = (session.selector, session.family, session.precision)
-    actual = (metadata.model, metadata.family, metadata.runtime_precision)
-    if actual != expected:
-        raise ValueError("Writer metadata does not match the inference session")

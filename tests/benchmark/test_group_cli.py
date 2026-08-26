@@ -16,16 +16,14 @@ class BenchmarkGroupCliTests(unittest.TestCase):
         command = Mock(return_value=0)
 
         exit_code = main(
-            ["yolo", "imagenette", "--limit", "20", "--image-size", "640"],
+            ["yolo", "imagenette", "--limit", "20"],
             benchmark_command=command,
         )
 
         self.assertEqual(0, exit_code)
         self.assertEqual(
             [
-                call(
-                    [model, "imagenette", "--limit", "20", "--image-size", "640"]
-                )
+                call(model, "imagenette", None, 20)
                 for model in ("yolov8n", "yolo11n", "yolo26n")
             ],
             command.call_args_list,
@@ -42,9 +40,7 @@ class BenchmarkGroupCliTests(unittest.TestCase):
         self.assertEqual(0, exit_code)
         self.assertEqual(
             [
-                call(
-                    [model, "coco", "--precision", precision, "--limit", "10"]
-                )
+                call(model, "coco", precision, 10)
                 for model, precision in benchmark_group_configurations("smolvlm")
             ],
             command.call_args_list,

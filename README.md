@@ -57,9 +57,8 @@ The current results use:
 | Batch size | 1 |
 
 The active desktop and dynamic clocks introduce normal real-world variation. They are
-part of this experiment and are recorded in every report. Results produced headless,
-with locked clocks, or under another power mode describe a different setup and should be
-reported separately.
+part of this documented experiment. Results produced headless, with locked clocks, or
+under another power mode describe a different setup and should be reported separately.
 
 L4T 36.4.7 was used in early testing but intermittently produced NvMap allocation errors
 and prevented reliable placement of larger models. The results below use L4T 36.5.2.
@@ -277,20 +276,11 @@ reports. Full-dataset output is stored separately under
 `results/benchmarks/full_run/`. A group stops when one configuration fails, while the
 completed reports already written by earlier configurations remain valid.
 
-To retry one configuration without repeating its group:
-
-```bash
-./scripts/run_benchmark.sh smolvlm2-2.2b imagenette \
-  --precision fp16 --limit 10
-```
-
-Remove `--limit` when the retry is intended to be a complete-dataset report.
-
 ## Reading benchmark reports
 
-Each JSON file identifies the model, dataset, precision, checkpoint, software versions,
-desktop state, power mode, clock state, warm-up count, and whether the run was limited or
-full. It retains one synchronized latency and status per image, plus compact summaries:
+Each JSON file identifies the model, dataset, precision, software versions,
+desktop state, fixed warm-up count, and whether the run was limited or full. It retains
+one synchronized latency and status per image, plus compact summaries:
 
 - mean, median, and nearest-rank p95 inference latency
 - model-load and total run time

@@ -10,7 +10,6 @@ from PIL import Image
 from src.benchmark.datasets import (
     DatasetImageError,
     load_benchmark_dataset,
-    validate_dataset_compatibility,
 )
 
 
@@ -91,14 +90,6 @@ class BenchmarkDatasetTests(unittest.TestCase):
     def test_limit_must_be_positive(self) -> None:
         with self.assertRaisesRegex(ValueError, "positive integer"):
             load_benchmark_dataset("coco", limit=0)
-
-    def test_model_family_dataset_mapping_is_explicit(self) -> None:
-        for family in ("yolo", "small-vlm"):
-            for dataset in ("coco", "imagenette"):
-                validate_dataset_compatibility(family, dataset)
-        with self.assertRaisesRegex(ValueError, "does not support"):
-            validate_dataset_compatibility("small-vlm", "unknown")
-
 
 if __name__ == "__main__":
     unittest.main()
